@@ -1,22 +1,34 @@
 package com.example.newsclient.data.model
 
+import com.google.gson.annotations.SerializedName
+
 /**
  * @author Shi
  * @version 1.0
- * the basic data model for the news
+ * the basic data model for the news，which is used to represent a news article.
+ * the news coming from the server with format of JSON will be parsed into this model.
  */
 
+//单条新闻数据
 data class News(
-    val id: String,
-    val title: String,
-    val content: String,
-    val author: String,
-    val date: String,
-    val imageUrl: String? = null,
-    val videoUrl: String? = null,
-    val source: String? = null
-) {
-    override fun toString(): String {
-        return "News(id='$id', title='$title', content='$content', author='$author', date='$date', imageUrl=$imageUrl, source=$source)"
-    }
-}
+    @SerializedName(value="newsID") val id: String,
+    @SerializedName("title") val title: String,
+    @SerializedName("content") val content: String,
+    @SerializedName("video") val videoUrl: String,
+    @SerializedName("image") val imageUrl: String,
+    @SerializedName("publishTime") val publishTime: String,
+    @SerializedName("category") val category: String,
+    @SerializedName("keywords") val keywords: List<Keyword>
+)
+
+data class Keyword(
+    @SerializedName("word") val word: String,
+    @SerializedName("score") val score: Double
+)
+
+// API响应包装类,这个类的作用是将API响应的数据进行封装，
+data class NewsResponse(
+    @SerializedName("total") val total: Int,
+    @SerializedName("data") val data: List<News>,
+    @SerializedName("currentPage") val currentPage: Int
+)
