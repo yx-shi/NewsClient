@@ -27,7 +27,7 @@ class NewsRepository(
         } catch (e: IOException) {
             // 失败时尝试从本地获取
             Log.e("NewsRepository", "网络连接异常", e)
-            db.newsDao().getNewsByPage(page)
+            db.newsDao().getNewsByPage(offset = page * 10)
         }
     }
 
