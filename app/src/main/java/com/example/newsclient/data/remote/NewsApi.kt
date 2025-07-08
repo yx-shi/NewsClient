@@ -21,7 +21,10 @@ import java.lang.reflect.Type
  */
 private const val BASE_URL = "https://api2.newsminer.net/"
 
-interface NewsApi {
+/**
+ * 定义retrofit的API接口
+ */
+interface NewsApiService {
     @GET("svc/news/queryNewsList")
     suspend fun getNewsList(
         @Query("page") page: Int,
@@ -31,20 +34,32 @@ interface NewsApi {
         @Query("words") keyword: String? = null,
         @Query("categories") category: String? = null
     ): NewsResponse
+}
 
-    companion object {
-        fun create(): NewsApi {
-            val retrofit = Retrofit.Builder()
-                .baseUrl(BASE_URL)
-                .addConverterFactory(
-                    GsonConverterFactory.create(
+/**
+ * 公开的单例对象，用于初始化Retrofit并提供API服务访问点。
+ */
+// 单例对象负责Retrofit初始化
+object NewsApi {
+    private const val BASE_URL = "https://api2.newsminer.net/"
+
+    // 使用懒加载初始化Retrofit
+    private val retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .addConverterFactory(
+                GsonConverterFactory.create(
                     GsonBuilder()
                         .registerTypeAdapter(News::class.java, NewsDeserializer())
                         .create()
-                ))
-                .build()
-            return retrofit.create(NewsApi::class.java)
-        }
+                )
+            )
+            .build()
+    }
+
+    // 对外暴露的Service访问点，属性委托
+    val service: NewsApiService by lazy {
+        retrofit.create(NewsApiService::class.java)
     }
 }
 
