@@ -27,12 +27,12 @@ private const val BASE_URL = "https://api2.newsminer.net/"
 interface NewsApiService {
     @GET("svc/news/queryNewsList")
     suspend fun getNewsList(
-        @Query("page") page: Int,
+        @Query("page") page: Int=1,
         @Query("size") size: Int = 15,
         @Query("startDate") startDate: String? = null,
         @Query("endDate") endDate: String? = null,
-        @Query("words") keyword: String? = null,
-        @Query("categories") category: String? = null
+        @Query("words") keyword: String? = "",
+        @Query("categories") categories: String? = null
     ): NewsResponse
 }
 

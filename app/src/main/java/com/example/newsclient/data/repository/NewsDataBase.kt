@@ -11,6 +11,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Update
 import androidx.room.Query
+import com.example.newsclient.data.model.News
 
 // 数据库实体
 @Entity(tableName = "news")
@@ -25,6 +26,19 @@ data class NewsEntity(
     val isBookmarked: Boolean = false,
     val viewedAt: Long = System.currentTimeMillis()
 )
+
+fun NewsEntity.toNews() : News {
+    return News(
+        id = this.id,
+        title = this.title,
+        content = this.content,
+        videoUrl = this.videoUrl,
+        imageUrl = this.imageUrl,
+        publishTime = this.publishTime,
+        category = this.category,
+        keywords = emptyList() // 这里可以根据需要添加关键词
+    )
+}
 
 // DAO接口
 @Dao

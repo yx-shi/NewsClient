@@ -11,6 +11,7 @@ class NewsRepository(
     // 获取新闻列表
     suspend fun getNews(
         page: Int,
+        size: Int = 15,
         category: String? = null,
         keyword: String? = null,
         startDate: String? = null,
@@ -19,7 +20,7 @@ class NewsRepository(
         return try {
             NewsApi.service.getNewsList(
                 page = page,
-                category = category,
+                categories = category,
                 keyword = keyword,
                 startDate = startDate,
                 endDate = endDate
@@ -27,12 +28,12 @@ class NewsRepository(
         } catch (e: IOException) {
             // 失败时尝试从本地获取
             Log.e("NewsRepository", "网络连接异常", e)
-            db.newsDao().getNewsByPage(offset = page * 10)
+            db.newsDao().getNewsByPage(offset = page * 10).map { it.toNews() }
         }
     }
 
     // 获取所有分类
     fun getAllCategories(): List<String> {
-        return listOf("全部", "娱乐", "军事", "教育", "文化", "健康", "财经", "体育", "汽车", "科技", "社会")
+        return listOf("娱乐", "军事", "教育", "文化", "健康", "财经", "体育", "汽车", "科技", "社会")
     }
 }
