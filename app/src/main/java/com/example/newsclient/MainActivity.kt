@@ -14,9 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.lifecycleScope
 import com.example.newsclient.data.model.NewsResponse
-import com.example.newsclient.data.remote.NewsApi
 import com.example.newsclient.ui.NewsViewModel
-import com.example.newsclient.ui.home.ShowNewsList
 import com.example.newsclient.ui.theme.NewsClientTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,20 +35,6 @@ class MainActivity : ComponentActivity() {
         }
 
         // 添加协程作用域，测试网络请求
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val testResponse = NewsApi.service.getNewsList(
-                    page = 1,
-                    startDate = "2023-01-01",
-                    endDate = "2023-01-02",
-                    categories = "科技"
-                )
-                Log.d("NetworkTest", "请求成功: ${testResponse.data.size} 条数据")
-                Log.d("NewsTest", "请求数据: ${testResponse.data.joinToString("\n") { it.title }}")
-            } catch (e: Exception) {
-                Log.e("NetworkTest", "请求失败", e)
-            }
-        }
     }
 }
 

@@ -10,6 +10,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.Text
 import com.example.newsclient.ui.theme.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -18,11 +19,13 @@ import com.example.newsclient.data.model.News
 import com.example.newsclient.ui.NewsListState
 import com.example.newsclient.ui.NewsViewModel
 import com.example.newsclient.ui.UiState
+import com.example.newsclient.ui.theme.NewsClientTheme
+import com.example.newsclient.data.model.Keyword
 
 
 @Composable
 fun ShowNewsList(
-    viewModel: NewsViewModel= NewsViewModel(), // 默认使用ViewModel实例
+    viewModel: NewsViewModel, // 默认使用ViewModel实例
     onNewsClick: (String) -> Unit ={}// 新闻点击回调
 ) {
     val newsState by viewModel.newsState.collectAsState()
@@ -34,7 +37,7 @@ fun ShowNewsList(
         }
         is UiState.Success -> NewsListContent(
             NewsList = state.data.news,
-            onLoadMore = { viewModel.loadNewsList() },
+            onLoadMore = { viewModel.getNewsList() },
             onNewsClick = onNewsClick
         )
         is UiState.Error -> {
@@ -73,6 +76,8 @@ fun NewsListContent(
     }
 }
 
+
+
 @Composable
 private fun NewsItem(
     news: News,
@@ -94,5 +99,29 @@ private fun NewsItem(
             )
         }
 
+    }
+}
+
+@Preview
+@Composable
+fun PreviewNewsItem() {
+    NewsClientTheme {
+        NewsItem(
+            news = News(
+                id = "1",
+                title = "Fake News 1",
+                content = "This is a fake news content 1.",
+                category = "科技",
+                videoUrl = "",
+                imageUrl = "",
+                publishTime="1",
+                keywords = listOf(
+                    Keyword("科技", 1.0),
+                    Keyword("新闻", 0.8)
+                ),
+                publisher = "QQ"
+            ),
+            onClick = { Log.d("PreviewNewsItem", "News clicked") },
+        )
     }
 }

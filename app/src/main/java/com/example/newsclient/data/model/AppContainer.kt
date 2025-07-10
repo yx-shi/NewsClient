@@ -14,8 +14,7 @@ interface AppContainer {
 }
 
 class DefaultAppContainer : AppContainer {
-    private val start_date = "2023-01-01"
-    private val end_date = "2023-01-02"
+
     private val base_url = "https://api2.newsminer.net/"
 
     private val retrofit by lazy {
@@ -32,13 +31,13 @@ class DefaultAppContainer : AppContainer {
     }
 
     // 对外暴露的Service访问点，属性委托
-    val service: NewsApiService by lazy {
+    private val service: NewsApiService by lazy {
         retrofit.create(NewsApiService::class.java)
     }
 
+    //实现依赖项注入，而不是由具体的ViewModel或其他类直接创建实例
     override val newsRepository: NewsRepository by lazy {
         // 使用网络仓库作为默认实现
         NetworkNewsRepository(service)
-        //TODO:修改仓库的实现
     }
 }

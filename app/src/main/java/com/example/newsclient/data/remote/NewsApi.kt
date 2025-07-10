@@ -17,6 +17,8 @@ import java.lang.reflect.Type
  * This interface defines the API endpoints for fetching news articles.
  */
 
+const val START_DATE = "2023-01-01"
+const val END_DATE = "2025-07-09"
 /**
  * 定义retrofit的API接口
  */
@@ -25,10 +27,10 @@ interface NewsApiService {
     suspend fun getNewsList(
         @Query("page") page: Int=1,
         @Query("size") size: Int = 15,
-        @Query("startDate") startDate: String? = null,
-        @Query("endDate") endDate: String? = null,
+        @Query("startDate") startDate: String? = START_DATE,
+        @Query("endDate") endDate: String? = END_DATE,
         @Query("words") keyword: String? = "",
-        @Query("categories") categories: String? = null
+        @Query("categories") categories: String? = ""
     ): NewsResponse
 }
 

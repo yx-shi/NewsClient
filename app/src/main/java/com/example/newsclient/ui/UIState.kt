@@ -24,14 +24,10 @@ sealed class UiState<out T> {
 // 新闻列表特定状态
 data class NewsListState(
     val news: List<News> = emptyList(),
-    val isLoading: Boolean = false,
-    val error: String? = null,
     val endReached: Boolean = false // 是否到达列表末尾
 )
 
 // 新闻详情状态
 data class NewsDetailState(
-    val news: News? = null,
-    val isLoading: Boolean = false,
-    val error: String? = null
+    val news: News? = null
 )

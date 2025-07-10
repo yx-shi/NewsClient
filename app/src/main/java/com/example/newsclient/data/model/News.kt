@@ -22,7 +22,7 @@ enum class NewsCategory(val value: String) {
     SOCIETY("社会");
 
     companion object {
-        val ALL_CATEGORIES = com.example.newsclient.data.remote.NewsCategory.entries.map { it.value }
+        val ALL_CATEGORIES = entries.map { it.value }
     }
 }
 
@@ -48,5 +48,5 @@ data class Keyword(
 data class NewsResponse(
     @SerializedName("total") val total: Int,
     @SerializedName("data") val data: List<News>,
-    @SerializedName("PageSize") val PageSize: Int
+    @SerializedName("PageSize") val pageSize: Int
 )
