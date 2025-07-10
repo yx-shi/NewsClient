@@ -3,13 +3,10 @@ package com.example.newsclient.data.remote
 import com.example.newsclient.data.model.Keyword
 import com.example.newsclient.data.model.News
 import com.example.newsclient.data.model.NewsResponse
-import com.google.gson.GsonBuilder
 import com.google.gson.JsonDeserializationContext
 import com.google.gson.JsonDeserializer
 import com.google.gson.JsonElement
 import com.google.gson.reflect.TypeToken
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Query
 import java.lang.reflect.Type
@@ -19,7 +16,6 @@ import java.lang.reflect.Type
  * @version 1.0
  * This interface defines the API endpoints for fetching news articles.
  */
-private const val BASE_URL = "https://api2.newsminer.net/"
 
 /**
  * 定义retrofit的API接口
@@ -37,32 +33,9 @@ interface NewsApiService {
 }
 
 /**
- * 公开的单例对象，用于初始化Retrofit并提供API服务访问点。
+ * 重写Gson的反序列化器，用于处理News模型的JSON转换。
+ * 这个反序列化器主要处理image字段可能为数组或空的情况。
  */
-// 单例对象负责Retrofit初始化
-object NewsApi {
-    private const val BASE_URL = "https://api2.newsminer.net/"
-
-    // 使用懒加载初始化Retrofit
-    private val retrofit by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .addConverterFactory(
-                GsonConverterFactory.create(
-                    GsonBuilder()
-                        .registerTypeAdapter(News::class.java, NewsDeserializer())
-                        .create()
-                )
-            )
-            .build()
-    }
-
-    // 对外暴露的Service访问点，属性委托
-    val service: NewsApiService by lazy {
-        retrofit.create(NewsApiService::class.java)
-    }
-}
-
 class NewsDeserializer : JsonDeserializer<News> {
     // This deserializer handles the conversion of JSON to the News model.
     override fun deserialize(
@@ -94,7 +67,8 @@ class NewsDeserializer : JsonDeserializer<News> {
             keywords = context?.deserialize<List<Keyword>>(
                 jsonObject.get("keywords"),
                 object : TypeToken<List<Keyword>>() {}.type
-            ) ?: emptyList()
+            ) ?: emptyList(),
+            publisher = jsonObject.get("publisher").asString
         )
     }
 }

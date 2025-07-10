@@ -23,6 +23,7 @@ data class NewsEntity(
     val imageUrl: String,
     val publishTime: String,
     val category: String,
+    val publisher: String,
     val isBookmarked: Boolean = false,
     val viewedAt: Long = System.currentTimeMillis()
 )
@@ -36,7 +37,8 @@ fun NewsEntity.toNews() : News {
         imageUrl = this.imageUrl,
         publishTime = this.publishTime,
         category = this.category,
-        keywords = emptyList() // 这里可以根据需要添加关键词
+        keywords = emptyList(), // 关键词可以在需要时添加
+        publisher = this.publisher
     )
 }
 

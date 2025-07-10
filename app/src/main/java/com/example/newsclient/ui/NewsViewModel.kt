@@ -12,11 +12,11 @@ import kotlinx.coroutines.launch
 // ui/home/NewsViewModel.kt
 
 class NewsViewModel (
-    private val repository: NewsRepository
+    private val repository: NewsRepository= NewsRepository() // 默认使用NewsRepository实例
 ) : ViewModel() {
 
     // 当前选择的分类
-    private val _currentCategory = MutableStateFlow("全部")
+    private val _currentCategory = MutableStateFlow("科技")
     val currentCategory: StateFlow<String> = _currentCategory.asStateFlow()
 
     // 新闻列表状态
@@ -39,7 +39,7 @@ class NewsViewModel (
      */
     fun loadNewsList(
         category: String = _currentCategory.value,
-        keyword: String? = null,
+        keyword: String? = "",
         refresh: Boolean = false
     ) {
         viewModelScope.launch {
@@ -55,7 +55,10 @@ class NewsViewModel (
                     page = currentPage,
                     size = pageSize,
                     category = if (category == "全部") null else category,
-                    keyword = keyword
+                    keyword = keyword,
+                    //TODO:仅仅测试使用
+                    startDate = "2024-01-01",
+                    endDate = "2024-01-10"
                 )
 
                 // 处理结果
@@ -91,59 +94,59 @@ class NewsViewModel (
         loadNewsList(refresh = true)
     }
 
-    /**
-     * 加载新闻详情
-     * @param newsId 新闻ID
-     */
-    fun loadNewsDetail(newsId: String) {
-        viewModelScope.launch {
-            _detailState.value = UiState.Loading
-            try {
-                // 优先尝试从本地获取（可能已缓存）
-                //TODO:完善repository方法getNewsById
-                val news = repository.getNewsById(newsId) ?:
-                throw Exception("新闻未找到")
+//    /**
+//     * 加载新闻详情
+//     * @param newsId 新闻ID
+//     */
+//    fun loadNewsDetail(newsId: String) {
+//        viewModelScope.launch {
+//            _detailState.value = UiState.Loading
+//            try {
+//
+//                //TODO:完善repository方法getNewsById
+//                val news = repository.getNewsById(newsId) ?:
+//                throw Exception("新闻未找到")
+//
+//                _detailState.value = UiState.Success(
+//                    NewsDetailState(news = news)
+//                )
+//            } catch (e: Exception) {
+//                _detailState.value = UiState.Error("加载详情失败: ${e.message}")
+//            }
+//        }
+//    }
 
-                _detailState.value = UiState.Success(
-                    NewsDetailState(news = news)
-                )
-            } catch (e: Exception) {
-                _detailState.value = UiState.Error("加载详情失败: ${e.message}")
-            }
-        }
-    }
-
-    /**
-     * 搜索新闻
-     * @param query 搜索关键词
-     */
-    fun searchNews(query: String) {
-        viewModelScope.launch {
-            _newsState.value = UiState.Loading
-            currentPage = 1
-
-            try {
-                //TODO:添加搜索方法searchNews
-                val news = repository.searchNews(
-                    query = query,
-                    page = currentPage,
-                    size = pageSize
-                )
-
-                _newsState.value = UiState.Success(
-                    NewsListState(
-                        news = news,
-                        endReached = news.size < pageSize
-                    )
-                )
-                currentPage++
-            } catch (e: Exception) {
-                _newsState.value = UiState.Error("搜索失败: ${e.message}")
-            }
-        }
-    }
-
-    // 获取所有可用分类
-    val categories: List<String>
-        get() = repository.getAllCategories()
+//    /**
+//     * 搜索新闻
+//     * @param query 搜索关键词
+//     */
+//    fun searchNews(query: String) {
+//        viewModelScope.launch {
+//            _newsState.value = UiState.Loading
+//            currentPage = 1
+//
+//            try {
+//                //TODO:添加搜索方法searchNews
+//                val news = repository.searchNews(
+//                    query = query,
+//                    page = currentPage,
+//                    size = pageSize
+//                )
+//
+//                _newsState.value = UiState.Success(
+//                    NewsListState(
+//                        news = news,
+//                        endReached = news.size < pageSize
+//                    )
+//                )
+//                currentPage++
+//            } catch (e: Exception) {
+//                _newsState.value = UiState.Error("搜索失败: ${e.message}")
+//            }
+//        }
+//    }
+//
+//    // 获取所有可用分类
+//    val categories: List<String>
+//        get() = repository.getAllCategories()
 }
