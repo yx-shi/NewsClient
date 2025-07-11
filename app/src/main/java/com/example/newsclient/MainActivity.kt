@@ -1,55 +1,83 @@
 package com.example.newsclient
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.lifecycle.lifecycleScope
-import com.example.newsclient.data.model.NewsResponse
-import com.example.newsclient.ui.NewsViewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.newsclient.ui.screen.NewsListScreen
+import com.example.newsclient.ui.screen.SearchScreen
+import com.example.newsclient.ui.screen.TestScreen
 import com.example.newsclient.ui.theme.NewsClientTheme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
+/**
+ * 主Activity
+ * 负责应用的主要导航和界面管理
+ */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             NewsClientTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                NewsApp()
             }
         }
-
-        // 添加协程作用域，测试网络请求
     }
 }
 
+/**
+ * 新闻应用主体
+ * 包含导航和所有界面
+ */
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+fun NewsApp() {
+    val navController = rememberNavController()
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    NewsClientTheme {
-        Greeting("Android")
+    NavHost(
+        navController = navController,
+        startDestination = "news_list",
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // 新闻列表界面
+        composable("news_list") {
+            NewsListScreen(
+                onNewsClick = { news ->
+                    // 点击新闻时的处理逻辑
+                    // 这里可以导航到新闻详情页
+                    // 暂时先打印日志
+                    println("点击了新闻: ${news.title}")
+                },
+                onSearchClick = {
+                    // 点击搜索时导航到搜索界面
+                    navController.navigate("search")
+                }
+            )
+        }
+
+        // 搜索界面
+        composable("search") {
+            SearchScreen(
+                onBackClick = {
+                    // 返回新闻列表界面
+                    navController.popBackStack()
+                },
+                onNewsClick = { news ->
+                    // 点击搜索结果中的新闻
+                    // 这里可以导航到新闻详情页
+                    println("点击了搜索结果: ${news.title}")
+                }
+            )
+        }
+
+        // 测试界面 - 用于调试API
+        composable("test") {
+            TestScreen()
+        }
     }
 }

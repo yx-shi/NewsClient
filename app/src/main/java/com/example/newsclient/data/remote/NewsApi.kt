@@ -25,12 +25,12 @@ const val END_DATE = "2025-07-09"
 interface NewsApiService {
     @GET("svc/news/queryNewsList")
     suspend fun getNewsList(
-        @Query("page") page: Int=1,
+        @Query("page") page: Int = 1,
         @Query("size") size: Int = 15,
         @Query("startDate") startDate: String? = START_DATE,
-        @Query("endDate") endDate: String? = END_DATE,
-        @Query("words") keyword: String? = "",
-        @Query("categories") categories: String? = ""
+        @Query("endDate") endDate: String? = "2024-12-31", // 修改为更早的日期
+        @Query("words") keyword: String? = null, // 改为null而不是空字符串
+        @Query("categories") categories: String? = null // 改为null而不是空字符串
     ): NewsResponse
 }
 

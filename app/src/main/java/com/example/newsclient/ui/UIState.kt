@@ -14,20 +14,20 @@ import com.example.newsclient.data.model.News
  * - Empty: 数据为空，显示空状态UI
  * - Error: 加载失败，显示错误信息
  */
-sealed class UiState<out T> {
-    object Loading : UiState<Nothing>()
-    data class Success<T>(val data: T) : UiState<T>()
-    object Empty : UiState<Nothing>()
-    data class Error(val message: String) : UiState<Nothing>()
-}
-
-// 新闻列表特定状态
-data class NewsListState(
-    val news: List<News> = emptyList(),
-    val endReached: Boolean = false // 是否到达列表末尾
-)
-
-// 新闻详情状态
-data class NewsDetailState(
-    val news: News? = null
-)
+//sealed class UiState<out T> {
+//    object Loading : UiState<Nothing>()
+//    data class Success<T>(val data: T) : UiState<T>()
+//    object Empty : UiState<Nothing>()
+//    data class Error(val message: String) : UiState<Nothing>()
+//}
+//
+//// 新闻列表特定状态
+//data class NewsListState(
+//    val news: List<News> = emptyList(),
+//    val endReached: Boolean = false // 是否到达列表末尾
+//)
+//
+//// 新闻详情状态
+//data class NewsDetailState(
+//    val news: News? = null
+//)
