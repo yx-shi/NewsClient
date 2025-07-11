@@ -1,5 +1,6 @@
 package com.example.newsclient.ui.screen
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -209,17 +210,82 @@ private fun NewsListContent(
 
     // 监听滚动状态，实现无限加载
     LaunchedEffect(listState) {
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
-            .collect { lastVisibleIndex ->
-                if (newsState is UiState.Success && lastVisibleIndex != null) {
-                    val totalItems = newsState.data.news.size
-                    if (lastVisibleIndex >= totalItems - 3 &&
-                        !newsState.data.isLoadingMore &&
-                        newsState.data.hasMoreData) {
+        snapshotFlow {
+            val layoutInfo = listState.layoutInfo
+            val totalItems = layoutInfo.totalItemsCount
+            val lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+
+            // 返回一个包含必要信息的数据类
+            ScrollInfo(
+                lastVisibleIndex = lastVisibleItemIndex,
+                totalItems = totalItems
+            )
+        }.collect { scrollInfo ->
+            Log.d("NewsListContent", "📱 滚动状态更新:")
+            Log.d("NewsListContent", "   当前可见最后一个item索引: ${scrollInfo.lastVisibleIndex}")
+            Log.d("NewsListContent", "   总item数量: ${scrollInfo.totalItems}")
+
+            // 当滚动到倒数第2个item时触发加载更多（提前触发）
+            // 修改逻辑：如果有数据显示，就认为状态正常，不完全依赖newsState
+            if (scrollInfo.totalItems > 0) {
+                val isNearBottom = scrollInfo.lastVisibleIndex >= scrollInfo.totalItems - 2
+                val hasEnoughItems = scrollInfo.totalItems >= 5
+
+                Log.d("NewsListContent", "🔍 检查加载更多条件:")
+                Log.d("NewsListContent", "   当前状态: ${newsState::class.simpleName}")
+                Log.d("NewsListContent", "   isNearBottom: $isNearBottom (${scrollInfo.lastVisibleIndex} >= ${scrollInfo.totalItems - 2})")
+                Log.d("NewsListContent", "   hasEnoughItems: $hasEnoughItems")
+
+                // 修改条件：只要有数据且接近底部就尝试加载更多
+                if (isNearBottom && hasEnoughItems) {
+                    // 检查是否为Success状态且满足加载更多条件
+                    if (newsState is UiState.Success) {
+                        val canLoadMore = !newsState.data.isLoadingMore && newsState.data.hasMoreData
+                        Log.d("NewsListContent", "   Success状态 - isLoadingMore: ${newsState.data.isLoadingMore}")
+                        Log.d("NewsListContent", "   Success状态 - hasMoreData: ${newsState.data.hasMoreData}")
+                        Log.d("NewsListContent", "   Success状态 - canLoadMore: $canLoadMore")
+
+                        if (canLoadMore) {
+                            Log.d("NewsListContent", "🚀 Success状态满足条件，触发加载更多")
+                            onLoadMore()
+                        } else {
+                            Log.d("NewsListContent", "❌ Success状态但不满足加载更多条件")
+                        }
+                    } else {
+                        // 即使状态不是Success，但如果有数据且满足其他条件，也尝试触发
+                        Log.d("NewsListContent", "⚠️ 状态不是Success但有数据，尝试触发加载更多")
                         onLoadMore()
+                    }
+                } else {
+                    if (!isNearBottom) {
+                        Log.d("NewsListContent", "❌ 未接近底部，不触发加载")
+                    }
+                    if (!hasEnoughItems) {
+                        Log.d("NewsListContent", "❌ 数据量不足5个，不触发")
+                    }
+                }
+            } else {
+                Log.d("NewsListContent", "❌ 总数量为0，不检查加载更多")
+                if (newsState !is UiState.Success) {
+                    Log.d("NewsListContent", "❌ 状态不是Success: ${newsState::class.simpleName}")
+                    // 额外调试：如果状态不是Success，输出更多信息
+                    when (newsState) {
+                        is UiState.Loading -> {
+                            Log.d("NewsListContent", "   状态详情: 正在加载中")
+                        }
+                        is UiState.Error -> {
+                            Log.d("NewsListContent", "   状态详情: 错误 - ${newsState.message}")
+                        }
+                        is UiState.Empty -> {
+                            Log.d("NewsListContent", "   状态详情: 空数据")
+                        }
+                        else -> {
+                            Log.d("NewsListContent", "   状态详情: 未知状态")
+                        }
                     }
                 }
             }
+        }
     }
 
     Box(
@@ -240,7 +306,10 @@ private fun NewsListContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(12.dp)
                 ) {
-                    items(newsState.data.news) { news ->
+                    items(
+                        items = newsState.data.news,
+                        key = { news -> news.id } // 添加key以优化性能
+                    ) { news ->
                         NewsItem(
                             news = news,
                             onClick = { onNewsClick(news) }
@@ -251,6 +320,13 @@ private fun NewsListContent(
                     if (newsState.data.isLoadingMore) {
                         item {
                             LoadingMoreIndicator()
+                        }
+                    }
+
+                    // 如果没有更多数据，显示底部提示
+                    if (!newsState.data.hasMoreData && newsState.data.news.isNotEmpty()) {
+                        item {
+                            NoMoreDataIndicator()
                         }
                     }
                 }
@@ -274,6 +350,15 @@ private fun NewsListContent(
         )
     }
 }
+
+/**
+ * 滚动信息数据类
+ * 用于传递滚动状态信息
+ */
+private data class ScrollInfo(
+    val lastVisibleIndex: Int,
+    val totalItems: Int
+)
 
 /**
  * 单个新闻条目
@@ -408,6 +493,26 @@ private fun LoadingMoreIndicator() {
                 color = Color.Gray
             )
         }
+    }
+}
+
+/**
+ * 没有更多数据的指示器
+ */
+@Composable
+private fun NoMoreDataIndicator() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "— 已经到底了 —",
+            fontSize = 14.sp,
+            color = Color.Gray,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
     }
 }
 

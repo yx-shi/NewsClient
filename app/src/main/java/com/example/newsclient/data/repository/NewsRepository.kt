@@ -9,6 +9,16 @@ import kotlinx.coroutines.flow.Flow
 import java.io.IOException
 
 /**
+ * 分页新闻数据结果
+ * 包含新闻列表和分页相关信息
+ */
+data class PaginatedNewsResult(
+    val news: List<News>,
+    val total: Int,
+    val hasMoreData: Boolean
+)
+
+/**
  * 新闻数据仓库接口
  * 定义了获取新闻数据的抽象方法，支持本地存储和网络请求
  */
@@ -16,17 +26,17 @@ interface NewsRepository {
     /**
      * 获取新闻列表，支持分页、分类、关键词搜索
      * @param category 新闻分类，为null表示获取所有分类
-     * @param keyword 搜索关键词，为空表示不进行关键词搜索
+     * @param keyword 搜�����关键词，为空表示不进行关键词搜索
      * @param page 页码，从1开始
      * @param pageSize 每页数量
-     * @return 新闻列表
+     * @return 分页新闻结果，包含新闻列表和分页信息
      */
     suspend fun getNews(
         category: NewsCategory? = null,
         keyword: String? = "",
         page: Int = 1,
         pageSize: Int = 15
-    ): List<News>
+    ): PaginatedNewsResult
 
     /**
      * 从本地数据库获取新闻详情
@@ -70,7 +80,7 @@ interface NewsRepository {
     suspend fun toggleFavorite(newsId: String): Boolean
 
     /**
-     * 清除历史记录（保留收藏的新闻）
+     * 清除历史记录（保留收藏的��闻）
      */
     suspend fun clearHistory()
 }
@@ -93,35 +103,53 @@ class NetworkNewsRepository(
         keyword: String?,
         page: Int,
         pageSize: Int
-    ): List<News> {
+    ): PaginatedNewsResult {
         return try {
             // 打印详细的请求参数用于调试
-            Log.d("NetworkNewsRepository", "开始获取新闻，参数：")
-            Log.d("NetworkNewsRepository", "page: $page")
-            Log.d("NetworkNewsRepository", "size: $pageSize")
-            Log.d("NetworkNewsRepository", "category: ${category?.value}")
-            Log.d("NetworkNewsRepository", "keyword: $keyword")
+            Log.d("NetworkNewsRepository", "📡 开始获取新闻，参数：")
+            Log.d("NetworkNewsRepository", "   page: $page")
+            Log.d("NetworkNewsRepository", "   size: $pageSize")
+            Log.d("NetworkNewsRepository", "   category: ${category?.value}")
+            Log.d("NetworkNewsRepository", "   keyword: $keyword")
 
             // 调用网络API获取新闻列表
-            val result = newsApiService.getNewsList(
+            val response = newsApiService.getNewsList(
                 page = page,
                 size = pageSize,
-                categories = category?.value,
-                keyword = if (keyword.isNullOrEmpty()) null else keyword, // 避免空字符串
-            ).data
+                categories = category?.value ?: "",
+                keyword = keyword ?: ""
+            )
 
-            Log.d("NetworkNewsRepository", "成功获取新闻数量: ${result.size}")
+            // 打印服务器响应信息
+            Log.d("NetworkNewsRepository", "📊 服务器响应：")
+            Log.d("NetworkNewsRepository", "   total: ${response.total}")
+            Log.d("NetworkNewsRepository", "   pageSize: ${response.pageSize}")
+            Log.d("NetworkNewsRepository", "   data.size: ${response.data.size}")
+
+            // 计算是否还有更多数据
+            // 注意：使用实际请求的pageSize而不是服务器返回的pageSize（可能为0）
+            val currentTotal = page * pageSize
+            val hasMoreData = currentTotal < response.total
+
+            Log.d("NetworkNewsRepository", "📈 分页计算：")
+            Log.d("NetworkNewsRepository", "   请求页码: $page")
+            Log.d("NetworkNewsRepository", "   请求每页数量: $pageSize")
+            Log.d("NetworkNewsRepository", "   当前已获取数量: $currentTotal")
+            Log.d("NetworkNewsRepository", "   实际返回数量: ${response.data.size}")
+            Log.d("NetworkNewsRepository", "   服务器总数: ${response.total}")
+            Log.d("NetworkNewsRepository", "   是否还有更多: $hasMoreData")
 
             // 将获取到的新闻缓存到本地数据库，但不标记为收藏
-            if (result.isNotEmpty()) {
-                newsLocalDataSource.cacheNews(result)
-                Log.d("NetworkNewsRepository", "新闻已缓存到本地数据库")
+            if (response.data.isNotEmpty()) {
+                newsLocalDataSource.cacheNews(response.data)
+                Log.d("NetworkNewsRepository", "💾 新闻已缓存到本地数据库")
             }
 
-            result
+            // 返回分页新闻结果
+            PaginatedNewsResult(response.data, response.total, hasMoreData)
         } catch (e: retrofit2.HttpException) {
             // HTTP错误的详细处理
-            Log.e("NetworkNewsRepository", "HTTP错误: ${e.code()} - ${e.message()}")
+            Log.e("NetworkNewsRepository", "❌ HTTP错误: ${e.code()} - ${e.message()}")
             try {
                 val errorBody = e.response()?.errorBody()?.string()
                 Log.e("NetworkNewsRepository", "错误响应内容: $errorBody")
@@ -130,22 +158,22 @@ class NetworkNewsRepository(
             }
 
             // 尝试从本地缓存获取数据
-            Log.d("NetworkNewsRepository", "尝试从本地缓存获取新闻")
+            Log.d("NetworkNewsRepository", "🔄 尝试从本地缓存获取新闻")
             val cachedNews = newsLocalDataSource.getCachedNews(category?.value, keyword)
-            Log.d("NetworkNewsRepository", "从缓存获取到新闻数量: ${cachedNews.size}")
-            cachedNews
+            Log.d("NetworkNewsRepository", "📦 从缓存获取到新闻数量: ${cachedNews.size}")
+            PaginatedNewsResult(cachedNews, cachedNews.size, false)
         } catch (e: IOException) {
             // 网络连接异常时，从本地数据库获取缓存的新闻
-            Log.e("NetworkNewsRepository", "网络连接异常，从本地缓存获取数据", e)
+            Log.e("NetworkNewsRepository", "🌐 网络连接异常，从本地缓存获取数据", e)
             val cachedNews = newsLocalDataSource.getCachedNews(category?.value, keyword)
-            Log.d("NetworkNewsRepository", "从缓存获取到新闻数量: ${cachedNews.size}")
-            cachedNews
+            Log.d("NetworkNewsRepository", "📦 从缓存获取到新闻数量: ${cachedNews.size}")
+            PaginatedNewsResult(cachedNews, cachedNews.size, false)
         } catch (e: Exception) {
             // 其他异常也尝试从本地获取
-            Log.e("NetworkNewsRepository", "获取新闻失败，从本地缓存获取数据", e)
+            Log.e("NetworkNewsRepository", "💥 获取新闻失败，从本地缓存获取数据", e)
             val cachedNews = newsLocalDataSource.getCachedNews(category?.value, keyword)
-            Log.d("NetworkNewsRepository", "从缓存获取到新闻数量: ${cachedNews.size}")
-            cachedNews
+            Log.d("NetworkNewsRepository", "📦 从缓存��取到新闻数量: ${cachedNews.size}")
+            PaginatedNewsResult(cachedNews, cachedNews.size, false)
         }
     }
 

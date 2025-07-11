@@ -1,5 +1,6 @@
 package com.example.newsclient.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -10,6 +11,7 @@ import com.example.newsclient.NewsApplication
 import com.example.newsclient.data.model.News
 import com.example.newsclient.data.model.NewsCategory
 import com.example.newsclient.data.repository.NewsRepository
+import com.example.newsclient.data.repository.PaginatedNewsResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -139,10 +141,17 @@ class NewsViewModel(
      * @param category 要设置的新闻分类，null表示全部分类
      */
     fun setCategory(category: NewsCategory?) {
+        Log.d("NewsViewModel", "🏷️ setCategory() 被调用:")
+        Log.d("NewsViewModel", "   新分类: ${category?.value ?: "全部"}")
+        Log.d("NewsViewModel", "   当前分类: ${_currentCategory.value?.value ?: "全部"}")
+
         // 只有当分类真正发生变化时才重新加载
         if (_currentCategory.value != category) {
+            Log.d("NewsViewModel", "✅ 分类发生变化，开始重新加载")
             _currentCategory.value = category
             refreshNewsList()
+        } else {
+            Log.d("NewsViewModel", "❌ 分类未变化，跳过重新加载")
         }
     }
 
@@ -151,10 +160,17 @@ class NewsViewModel(
      * @param keyword 搜索关键词，null或空字符串表示不搜索
      */
     fun setSearchKeyword(keyword: String?) {
+        Log.d("NewsViewModel", "🔍 setSearchKeyword() 被调用:")
+        Log.d("NewsViewModel", "   新关键词: '$keyword'")
+        Log.d("NewsViewModel", "   当前关键词: '${_searchKeyword.value}'")
+
         // 只有当关键词真正发生变化时才重新加载
         if (_searchKeyword.value != keyword) {
+            Log.d("NewsViewModel", "✅ 关键词发生变化，开始重新加载")
             _searchKeyword.value = keyword
             refreshNewsList()
+        } else {
+            Log.d("NewsViewModel", "❌ 关键词未变化，跳过重新加载")
         }
     }
 
@@ -188,8 +204,8 @@ class NewsViewModel(
         // 在协程中执行网络请求
         viewModelScope.launch {
             try {
-                // 调用Repository获取新闻数据
-                val newsList = repository.getNews(
+                // 调用Repository获取新闻数据（现在返回PaginatedNewsResult��
+                val result = repository.getNews(
                     category = _currentCategory.value,
                     keyword = _searchKeyword.value,
                     page = currentPage,
@@ -197,12 +213,12 @@ class NewsViewModel(
                 )
 
                 // 处理获取到的数据
-                handleNewsListResult(newsList, refresh, loadMore)
+                handleNewsListResult(result, refresh, loadMore)
 
             } catch (e: IOException) {
                 // 网络连接异常
                 handleError("网络连接异常: ${e.message}")
-            } catch (e: HttpException) {
+            } catch (e: retrofit2.HttpException) {
                 // HTTP错误
                 handleError("服务器错误: ${e.message}")
             } catch (e: Exception) {
@@ -214,45 +230,63 @@ class NewsViewModel(
 
     /**
      * 处理新闻列表获取结果
-     * @param newsList 获取到的新闻列表
+     * @param result 分页新闻结果，包含新闻列表和分页信息
      * @param refresh 是否为刷新操作
      * @param loadMore 是否为加载更多操作
      */
-    private fun handleNewsListResult(newsList: List<News>, refresh: Boolean, loadMore: Boolean) {
-        if (newsList.isEmpty() && currentPage == 1) {
+    private fun handleNewsListResult(result: PaginatedNewsResult, refresh: Boolean, loadMore: Boolean) {
+        Log.d("NewsViewModel", "📊 处理新闻列表结果:")
+        Log.d("NewsViewModel", "   获取到新闻数量: ${result.news.size}")
+        Log.d("NewsViewModel", "   总数: ${result.total}")
+        Log.d("NewsViewModel", "   是否还有更多: ${result.hasMoreData}")
+        Log.d("NewsViewModel", "   当前页码: $currentPage")
+        Log.d("NewsViewModel", "   是否刷新: $refresh")
+        Log.d("NewsViewModel", "   是否加载更多: $loadMore")
+
+        val currentState = _newsState.value
+        Log.d("NewsViewModel", "   当前状态: ${currentState::class.simpleName}")
+
+        if (result.news.isEmpty() && currentPage == 1) {
             // 第一页且没有数据，显示空状态
+            Log.d("NewsViewModel", "🔄 设置状态为Empty（第一页无数据）")
             _newsState.value = UiState.Empty
         } else {
-            val currentState = _newsState.value
-            if (currentState is UiState.Success && !refresh) {
-                // 不是刷新操作，需要合并数据
+            if (currentState is UiState.Success && loadMore) {
+                // 加载更多操作，需要合并数据
                 val existingNews = currentState.data.news
-                val combinedNews = if (loadMore) {
-                    existingNews + newsList  // 加载更多时追加到现有数据后面
-                } else {
-                    newsList  // 其他情况使用新数据
-                }
+                val combinedNews = existingNews + result.news
+
+                Log.d("NewsViewModel", "🔄 设置状态为Success（加载更多）")
+                Log.d("NewsViewModel", "   原有新闻数量: ${existingNews.size}")
+                Log.d("NewsViewModel", "   新增新闻数量: ${result.news.size}")
+                Log.d("NewsViewModel", "   合并后数量: ${combinedNews.size}")
 
                 _newsState.value = UiState.Success(
                     NewsListState(
                         news = combinedNews,
                         isRefreshing = false,
                         isLoadingMore = false,
-                        hasMoreData = newsList.isNotEmpty()
+                        hasMoreData = result.hasMoreData
                     )
                 )
             } else {
                 // 刷新操作或首次加载，使用全新数据
+                Log.d("NewsViewModel", "🔄 设置状态为Success（刷新或首次加载）")
+                Log.d("NewsViewModel", "   新闻数量: ${result.news.size}")
+                Log.d("NewsViewModel", "   是否还有更多数据: ${result.hasMoreData}")
+
                 _newsState.value = UiState.Success(
                     NewsListState(
-                        news = newsList,
+                        news = result.news,
                         isRefreshing = false,
                         isLoadingMore = false,
-                        hasMoreData = newsList.isNotEmpty()
+                        hasMoreData = result.hasMoreData
                     )
                 )
             }
         }
+
+        Log.d("NewsViewModel", "✅ 状态更新完成，新状态: ${_newsState.value::class.simpleName}")
     }
 
     /**
@@ -268,16 +302,43 @@ class NewsViewModel(
      * 检查当前状态，如果满足条件则加载下一页
      */
     fun loadMoreNews() {
+        Log.d("NewsViewModel", "🔄 loadMoreNews() 被调用")
+
         val currentState = _newsState.value
-        // 只有在当前状态为成功，且不在加载中，且还有更多数据时才加载
-        if (currentState is UiState.Success &&
-            !currentState.data.isLoadingMore &&
-            currentState.data.hasMoreData) {
-            getNewsList(loadMore = true)
+        Log.d("NewsViewModel", "📊 当前状态类型: ${currentState::class.simpleName}")
+
+        when (currentState) {
+            is UiState.Success -> {
+                Log.d("NewsViewModel", "✅ 当前状态为Success")
+                Log.d("NewsViewModel", "   isLoadingMore: ${currentState.data.isLoadingMore}")
+                Log.d("NewsViewModel", "   hasMoreData: ${currentState.data.hasMoreData}")
+                Log.d("NewsViewModel", "   当前新闻数量: ${currentState.data.news.size}")
+
+                if (!currentState.data.isLoadingMore && currentState.data.hasMoreData) {
+                    Log.d("NewsViewModel", "🚀 满足加载更多条件，开始加载下一页")
+                    getNewsList(loadMore = true)
+                } else {
+                    if (currentState.data.isLoadingMore) {
+                        Log.d("NewsViewModel", "⏳ 正在加载中，跳过此次请求")
+                    }
+                    if (!currentState.data.hasMoreData) {
+                        Log.d("NewsViewModel", "🚫 没有更多数据，跳过此次请求")
+                    }
+                }
+            }
+            is UiState.Loading -> {
+                Log.d("NewsViewModel", "⏳ 当前状态为Loading，跳过加载更多")
+            }
+            is UiState.Error -> {
+                Log.d("NewsViewModel", "❌ 当前状态为Error，跳过加载更多")
+            }
+            is UiState.Empty -> {
+                Log.d("NewsViewModel", "📭 当前状态为Empty，跳过加载更多")
+            }
         }
     }
 
-    // === 新闻详情相关方法 ===
+    // === 新闻��情相关方法 ===
 
     /**
      * 查看新闻详情
@@ -335,7 +396,7 @@ class NewsViewModel(
 
             } catch (e: Exception) {
                 // 收藏操作失败，这里可以显示错误提示
-                // 实际应用中可以通过Snackbar或Toast提示��户
+                // 实际应用中可以通过Snackbar���Toast提示��户
             }
         }
     }
@@ -396,7 +457,7 @@ class NewsViewModel(
         viewModelScope.launch {
             try {
                 repository.clearHistory()
-                // 清除成功后设置为空状态
+                // 清除成功��设置为空状态
                 _historyState.value = UiState.Empty
             } catch (e: Exception) {
                 _historyState.value = UiState.Error("清除历史记录失败: ${e.message}")
@@ -407,14 +468,14 @@ class NewsViewModel(
     // === 私有辅助方法 ===
 
     /**
-     * 处理错误情况的统一方法
+     * 处理错误情况的统一方���
      * @param errorMessage 错误消息
      */
     private fun handleError(errorMessage: String) {
         val currentState = _newsState.value
         if (currentState is UiState.Success) {
             // 如果已经有数据，保留现有数据
-            // 在实际应用中可以通过Snackbar显示错误消息
+            // 在实际应用中可以通过Snackbar显示错��消息
             // 这样用户仍能看到之前加载的数据
         } else {
             // 如果没有数据，显示错误状态

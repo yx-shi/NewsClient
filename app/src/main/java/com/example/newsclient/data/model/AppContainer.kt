@@ -29,8 +29,11 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     /**
      * API的基础URL
+     * 如果主域名无法访问，可以尝试备用地址
      */
     private val base_url = "https://api2.newsminer.net/"
+    // 备用URL（如果需要的话）
+    // private val backup_url = "http://api2.newsminer.net/" // HTTP版本
 
     /**
      * HTTP日志拦截器
@@ -42,10 +45,13 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     /**
      * OkHttp客户端
-     * 添加日志拦截器用于调试
+     * 添加日志拦截器和超时配置用于调试
      */
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor)
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)    // 连接超时30秒
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)       // 读取超���30秒
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)      // 写入超时30秒
         .build()
 
     /**
@@ -92,14 +98,19 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     /**
-     * 新闻数据仓库
+     * 新���数据仓库
      * 实现依赖项注入，而不是由具体的ViewModel或其他类直接创建实例
      * 结合网络API和本地数据库，提供统一的数据访问接口
      */
     override val newsRepository: NewsRepository by lazy {
-        NetworkNewsRepository(
-            newsApiService = newsApiService,
-            newsLocalDataSource = newsLocalDataSource
-        )
+        // 临时使用模拟数据来测试界面功能，直到网络问题解决
+        // 如果网络正常，可以切换回 NetworkNewsRepository
+//        com.example.newsclient.data.repository.MockNewsRepository()
+
+//         当网络问题解决后，取消注释下面这行，注释上面那行
+         NetworkNewsRepository(
+             newsApiService = newsApiService,
+             newsLocalDataSource = newsLocalDataSource
+         )
     }
 }

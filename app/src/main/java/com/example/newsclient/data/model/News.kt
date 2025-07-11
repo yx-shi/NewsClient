@@ -48,5 +48,5 @@ data class Keyword(
 data class NewsResponse(
     @SerializedName("total") val total: Int,
     @SerializedName("data") val data: List<News>,
-    @SerializedName("PageSize") val pageSize: Int
+    @SerializedName("pageSize") val pageSize: Int // 修改为小写pageSize
 )
