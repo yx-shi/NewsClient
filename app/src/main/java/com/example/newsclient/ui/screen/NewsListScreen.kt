@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
@@ -45,12 +46,14 @@ import com.example.newsclient.ui.UiState
 fun NewsListScreen(
     onNewsClick: (News) -> Unit,
     onSearchClick: (NewsCategory?) -> Unit, // 修改为接收分类参数
+    onCategoryManageClick: () -> Unit = {}, // 新增：分类管理点击回调
     viewModel: NewsViewModel = viewModel(factory = NewsViewModel.Factory)
 ) {
     // 收集ViewModel状态
     val newsState by viewModel.newsState.collectAsState()
     val currentCategory by viewModel.currentCategory.collectAsState()
     val searchKeyword by viewModel.searchKeyword.collectAsState()
+    val userCategories by viewModel.userCategories.collectAsState()
 
     // 添加调试日志
     LaunchedEffect(Unit) {
@@ -58,9 +61,9 @@ fun NewsListScreen(
         Log.d("NewsListScreen", "   onSearchClick 函数: ${onSearchClick}")
     }
 
-    // 分类列表（包含"全部"选项）
-    val categories = remember {
-        listOf(null) + NewsCategory.entries // null 代表"全部"
+    // 分类列表（包含"全部"选项 + 用户自定义分类）
+    val categories = remember(userCategories) {
+        listOf(null) + userCategories // null 代表"全部"，然后是用户选择的分类
     }
 
     Column(
@@ -68,24 +71,6 @@ fun NewsListScreen(
             .fillMaxSize()
             .background(Color(0xFFF5F5F5))
     ) {
-        // 临时测试按钮 - 用于验证导航
-        Button(
-            onClick = {
-                Log.d("TestButton", "🧪 测试按钮被点击，当前分类: ${currentCategory?.value ?: "全部"}")
-                try {
-                    onSearchClick(currentCategory)
-                    Log.d("TestButton", "✅ 测试按钮调用 onSearchClick 成功")
-                } catch (e: Exception) {
-                    Log.e("TestButton", "❌ 测试按钮调用 onSearchClick 失败", e)
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        ) {
-            Text("测试搜索导航 - 当前分类: ${currentCategory?.value ?: "全部"}")
-        }
-
         // 搜索栏
         SearchBar(
             searchKeyword = searchKeyword,
@@ -101,11 +86,12 @@ fun NewsListScreen(
             onSearchTextChange = { viewModel.setSearchKeyword(it) }
         )
 
-        // 分类选择栏
+        // 分类选择栏（包含管理按钮）
         CategorySelector(
             categories = categories,
             currentCategory = currentCategory,
-            onCategorySelected = { viewModel.setCategory(it) }
+            onCategorySelected = { viewModel.setCategory(it) },
+            onManageClick = onCategoryManageClick
         )
 
         // 新闻列表
@@ -170,7 +156,8 @@ private fun SearchBar(
 private fun CategorySelector(
     categories: List<NewsCategory?>,
     currentCategory: NewsCategory?,
-    onCategorySelected: (NewsCategory?) -> Unit
+    onCategorySelected: (NewsCategory?) -> Unit,
+    onManageClick: () -> Unit // 新增：分类管理点击回调
 ) {
     LazyRow(
         modifier = Modifier
@@ -184,6 +171,13 @@ private fun CategorySelector(
                 category = category,
                 isSelected = currentCategory == category,
                 onClick = { onCategorySelected(category) }
+            )
+        }
+
+        // 分类管理按钮
+        item {
+            CategoryManageButton(
+                onClick = onManageClick
             )
         }
     }
@@ -219,6 +213,45 @@ private fun CategoryChip(
             fontSize = 14.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
+    }
+}
+
+/**
+ * 分类管理按钮
+ */
+@Composable
+private fun CategoryManageButton(
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .clickable { onClick() }
+            .clip(RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF00796B) // 深绿色
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings, // 使用Material Icons的设置图标
+                contentDescription = "管理分类",
+                tint = Color.White,
+                modifier = Modifier.size(16.dp)
+            )
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            Text(
+                text = "管理",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 

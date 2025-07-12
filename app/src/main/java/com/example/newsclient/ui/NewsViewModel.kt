@@ -12,6 +12,7 @@ import com.example.newsclient.data.model.News
 import com.example.newsclient.data.model.NewsCategory
 import com.example.newsclient.data.repository.NewsRepository
 import com.example.newsclient.data.repository.PaginatedNewsResult
+import com.example.newsclient.data.local.UserPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -60,7 +61,8 @@ data class NewsDetailState(
  * 遵循MVVM架构模式，作为View和Model之间的桥梁
  */
 class NewsViewModel(
-    private val repository: NewsRepository     // 新闻数据仓库
+    private val repository: NewsRepository,     // 新闻数据仓库
+    private val userPreferences: UserPreferences  // 用户偏好设置管理器
 ) : ViewModel() {
 
     // === 分类和搜索状态 ===
@@ -71,6 +73,13 @@ class NewsViewModel(
      */
     private val _currentCategory = MutableStateFlow<NewsCategory?>(null)
     val currentCategory: StateFlow<NewsCategory?> = _currentCategory.asStateFlow()
+
+    /**
+     * 用户选择的分类列表
+     * 从用户偏好设置中获取
+     */
+    private val _userCategories = MutableStateFlow<List<NewsCategory>>(emptyList())
+    val userCategories: StateFlow<List<NewsCategory>> = _userCategories.asStateFlow()
 
     /**
      * 当前搜索关键词
@@ -140,6 +149,8 @@ class NewsViewModel(
         loadHistoryNews()
         // 加载收藏新闻
         loadFavoriteNews()
+        // 加载用户偏好设置的分类
+        loadUserCategories()
     }
 
     // === 分类和搜索相关方法 ===
@@ -458,6 +469,24 @@ class NewsViewModel(
     }
 
     /**
+     * 加载用户偏好设置的分类
+     * 从UserPreferences中获取用户选择的分类
+     */
+    private fun loadUserCategories() {
+        viewModelScope.launch {
+            userPreferences.getUserCategories()
+                .catch { e ->
+                    // 处理Flow中的异常
+                    _userCategories.value = emptyList()
+                }
+                .collect { categories ->
+                    // 更新用户分类状态
+                    _userCategories.value = categories
+                }
+        }
+    }
+
+    /**
      * 清除历史记录
      * 删除所有浏览历史，但保留收藏的新闻
      */
@@ -765,7 +794,10 @@ class NewsViewModel(
             initializer {
                 // 从Application中获取依赖
                 val application = (this[APPLICATION_KEY] as NewsApplication)
-                NewsViewModel(repository = application.container.newsRepository)
+                NewsViewModel(
+                    repository = application.container.newsRepository,
+                    userPreferences = application.userPreferences
+                )
             }
         }
     }

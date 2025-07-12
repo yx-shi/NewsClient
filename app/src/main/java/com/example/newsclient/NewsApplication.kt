@@ -3,6 +3,7 @@ package com.example.newsclient
 import android.app.Application
 import com.example.newsclient.data.model.AppContainer
 import com.example.newsclient.data.model.DefaultAppContainer
+import com.example.newsclient.data.local.UserPreferences
 
 /**
  * 新闻应用程序类
@@ -19,6 +20,12 @@ class NewsApplication: Application() {
     lateinit var container: AppContainer
 
     /**
+     * 用户偏好设置管理器
+     * 用于管理用户的分类偏好等设置
+     */
+    lateinit var userPreferences: UserPreferences
+
+    /**
      * 应用程序创建时的回调方法
      * 在这里初始化应用程序的全局组件和依赖项
      */
@@ -27,5 +34,8 @@ class NewsApplication: Application() {
         // 初始化应用容器，传递应用程序的Context
         // 这样容器就可以创建需要Context的组件，如数据库
         container = DefaultAppContainer(applicationContext)
+
+        // 初始化用户偏好设置管理器
+        userPreferences = UserPreferences(applicationContext)
     }
 }

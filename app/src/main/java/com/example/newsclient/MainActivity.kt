@@ -19,6 +19,7 @@ import com.example.newsclient.data.model.NewsCategory
 import com.example.newsclient.ui.screen.NewsListScreen
 import com.example.newsclient.ui.screen.SimplifiedSearchScreen
 import com.example.newsclient.ui.screen.NewsDetailScreen
+import com.example.newsclient.ui.screen.CategoryManagementScreen
 import com.example.newsclient.ui.screen.TestScreen
 import com.example.newsclient.ui.theme.NewsClientTheme
 import com.example.newsclient.ui.viewmodel.NewsDetailViewModel
@@ -72,6 +73,11 @@ fun NewsApp() {
                     } catch (e: Exception) {
                         android.util.Log.e("MainActivity", "❌ 导航到搜索界面失败", e)
                     }
+                },
+                onCategoryManageClick = {
+                    // 导航到分类管理界面
+                    android.util.Log.d("MainActivity", "🛠️ 分类管理按钮被点击")
+                    navController.navigate("category_management")
                 }
             )
         }
@@ -126,6 +132,15 @@ fun NewsApp() {
         // 测试界面 - 用于调试API
         composable("test") {
             TestScreen()
+        }
+
+        // 分类管理界面
+        composable("category_management") {
+            CategoryManagementScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
         }
     }
 }
