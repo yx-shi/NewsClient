@@ -34,6 +34,16 @@ interface NewsApiService {
         @Query("words") keyword: String = "",        // 改为必填，默认空字符串
         @Query("categories") categories: String = ""  // 改为必填，默认空字符串
     ): NewsResponse
+
+    @GET("svc/news/queryNewsList")
+    suspend fun searchNews(
+        @Query("words") keyword: String,
+        @Query("categories") categories: String = "",
+        @Query("startDate") startDate: String = START_DATE,
+        @Query("endDate") endDate: String = END_DATE,
+        @Query("page") page: Int = 1,
+        @Query("size") size: Int = 100  // 搜索时获取更多结果用于排序
+    ): NewsResponse
 }
 
 /**
@@ -49,14 +59,26 @@ class NewsDeserializer : JsonDeserializer<News> {
     ): News {
         val jsonObject = json.asJsonObject
 
-        // 处理image字段可能为数组或空的情况
+        // 处理image字段可能为数组字符串或空的情况
         val imageElement = jsonObject.get("image")
         val imageUrl = when {
-            imageElement.isJsonArray -> {
-                val array = imageElement.asJsonArray
-                if (array.size() > 0) array[0].asString else ""
+            imageElement.isJsonPrimitive && !imageElement.isJsonNull -> {
+                val imageStr = imageElement.asString?.trim() ?: ""
+                when {
+                    imageStr.isEmpty() || imageStr == "[]" -> ""
+                    imageStr.startsWith("[") && imageStr.endsWith("]") -> {
+                        // 处理数组格式的字符串，如 "[http://..., http://...]"
+                        val urlsString = imageStr.substring(1, imageStr.length - 1)
+                        urlsString.split(",")
+                            .asSequence()
+                            .map { it.trim().removePrefix("\"").removeSuffix("\"") }
+                            .filter { it.isNotEmpty() && it.startsWith("http") }
+                            .firstOrNull() ?: ""
+                    }
+                    imageStr.startsWith("http") -> imageStr
+                    else -> ""
+                }
             }
-            imageElement.isJsonPrimitive -> imageElement.asString
             else -> ""
         }
 

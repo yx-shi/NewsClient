@@ -44,13 +44,19 @@ import com.example.newsclient.ui.UiState
 @Composable
 fun NewsListScreen(
     onNewsClick: (News) -> Unit,
-    onSearchClick: () -> Unit,
+    onSearchClick: (NewsCategory?) -> Unit, // 修改为接收分类参数
     viewModel: NewsViewModel = viewModel(factory = NewsViewModel.Factory)
 ) {
     // 收集ViewModel状态
     val newsState by viewModel.newsState.collectAsState()
     val currentCategory by viewModel.currentCategory.collectAsState()
     val searchKeyword by viewModel.searchKeyword.collectAsState()
+
+    // 添加调试日志
+    LaunchedEffect(Unit) {
+        Log.d("NewsListScreen", "🎯 NewsListScreen 组件初始化")
+        Log.d("NewsListScreen", "   onSearchClick 函数: ${onSearchClick}")
+    }
 
     // 分类列表（包含"全部"选项）
     val categories = remember {
@@ -62,10 +68,36 @@ fun NewsListScreen(
             .fillMaxSize()
             .background(Color(0xFFF5F5F5))
     ) {
+        // 临时测试按钮 - 用于验证导航
+        Button(
+            onClick = {
+                Log.d("TestButton", "🧪 测试按钮被点击，当前分类: ${currentCategory?.value ?: "全部"}")
+                try {
+                    onSearchClick(currentCategory)
+                    Log.d("TestButton", "✅ 测试按钮调用 onSearchClick 成功")
+                } catch (e: Exception) {
+                    Log.e("TestButton", "❌ 测试按钮调用 onSearchClick 失败", e)
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        ) {
+            Text("测试搜索导航 - 当前分类: ${currentCategory?.value ?: "全部"}")
+        }
+
         // 搜索栏
         SearchBar(
             searchKeyword = searchKeyword,
-            onSearchClick = onSearchClick,
+            onSearchClick = {
+                Log.d("NewsListScreen", "🔍 SearchBar 回调被触发，当前分类: ${currentCategory?.value ?: "全部"}")
+                try {
+                    onSearchClick(currentCategory) // 传递当前分类
+                    Log.d("NewsListScreen", "✅ SearchBar 调用 onSearchClick 成功")
+                } catch (e: Exception) {
+                    Log.e("NewsListScreen", "❌ SearchBar 调用 onSearchClick 失败", e)
+                }
+            },
             onSearchTextChange = { viewModel.setSearchKeyword(it) }
         )
 
@@ -105,6 +137,10 @@ private fun SearchBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable {
+                    Log.d("SearchBar", "🔍 搜索栏被点击 - 准备导航")
+                    onSearchClick()
+                }
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -121,9 +157,7 @@ private fun SearchBar(
                 text = searchKeyword?.takeIf { it.isNotEmpty() } ?: "搜索新闻...",
                 color = if (searchKeyword.isNullOrEmpty()) Color.Gray else Color.Black,
                 fontSize = 16.sp,
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { onSearchClick() }
+                modifier = Modifier.weight(1f)
             )
         }
     }
@@ -375,72 +409,103 @@ private fun NewsItem(
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(12.dp)
         ) {
-            // 新闻图片
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(news.imageUrl)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = "新闻图片",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.Gray.copy(alpha = 0.1f)),
-                error = painterResource(id = android.R.drawable.ic_menu_gallery)
+            // 新闻标题
+            Text(
+                text = news.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // 新闻内容
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                // 新闻标题
-                Text(
-                    text = news.title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+            // 新闻图片（只有在有有效图片URL时才显示）
+            val processedImageUrl = news.imageUrl.let { url ->
+                when {
+                    url.isBlank() -> ""
+                    url == "[]" -> ""
+                    url.startsWith("[") && url.endsWith("]") -> {
+                        // 处理可能的数组格式，提取第一张有效图片
+                        url.substring(1, url.length - 1)
+                            .split(",")
+                            .asSequence()
+                            .map { it.trim().removePrefix("\"").removeSuffix("\"") }
+                            .filter { it.isNotEmpty() && (it.startsWith("http://") || it.startsWith("https://")) }
+                            .firstOrNull() ?: ""
+                    }
+                    url.startsWith("http://") || url.startsWith("https://") -> url
+                    else -> ""
+                }
+            }
 
-                Spacer(modifier = Modifier.height(4.dp))
+            if (processedImageUrl.isNotEmpty()) {
+                // 智能图片加载：先尝试HTTPS，失败后自动回退到HTTP
+                var finalImageUrl by remember { mutableStateOf(processedImageUrl) }
+                var hasTriedFallback by remember { mutableStateOf(false) }
 
-                // 新闻摘要
-                Text(
-                    text = news.content,
-                    fontSize = 14.sp,
-                    color = Color.Gray,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(finalImageUrl)
+                        .crossfade(true)
+                        .listener(
+                            onError = { _, result ->
+                                android.util.Log.w("NewsItem", "图片加载失败: $finalImageUrl, 错误: ${result.throwable.message}")
+
+                                // 如果是HTTPS失败且还没尝试过HTTP回退，则尝试HTTP
+                                if (!hasTriedFallback && finalImageUrl.startsWith("https://")) {
+                                    val httpUrl = finalImageUrl.replaceFirst("https://", "http://")
+                                    android.util.Log.i("NewsItem", "尝试HTTP回退: $httpUrl")
+                                    finalImageUrl = httpUrl
+                                    hasTriedFallback = true
+                                }
+                            }
+                        )
+                        .build(),
+                    contentDescription = "新闻图片",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp)
+                        .clip(RoundedCornerShape(8.dp))
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
+            }
 
-                // 新闻元信息
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = news.publisher,
-                        fontSize = 12.sp,
-                        color = Color.Gray
-                    )
+            // 新闻摘要
+            Text(
+                text = news.content,
+                fontSize = 14.sp,
+                color = Color.Gray,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
 
-                    Text(
-                        text = formatPublishTime(news.publishTime),
-                        fontSize = 12.sp,
-                        color = Color.Gray
-                    )
-                }
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 新闻元信息
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = news.publisher,
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+
+                Text(
+                    text = formatPublishTime(news.publishTime),
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
             }
         }
     }

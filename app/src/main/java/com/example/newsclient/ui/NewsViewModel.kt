@@ -95,6 +95,14 @@ class NewsViewModel(
     private val _detailState = MutableStateFlow<UiState<NewsDetailState>>(UiState.Loading)
     val detailState: StateFlow<UiState<NewsDetailState>> = _detailState.asStateFlow()
 
+    // === 搜索结果状态 ===
+
+    /**
+     * 搜索结果的UI状态
+     */
+    private val _searchResultState = MutableStateFlow<UiState<List<News>>>(UiState.Empty)
+    val searchResultState: StateFlow<UiState<List<News>>> = _searchResultState.asStateFlow()
+
     // === 历史记录和收藏状态 ===
 
     /**
@@ -463,6 +471,130 @@ class NewsViewModel(
                 _historyState.value = UiState.Error("清除历史记录失败: ${e.message}")
             }
         }
+    }
+
+    // === 搜索相关方法 ===
+
+    /**
+     * 搜索新闻
+     * @param keyword 搜索关键词
+     * @param category 搜索范围分类，null表示在所有分类中搜索
+     */
+    fun searchNews(keyword: String, category: NewsCategory? = null) {
+        Log.d("NewsViewModel", "🔍 searchNews() 被调用:")
+        Log.d("NewsViewModel", "   关键词: '$keyword'")
+        Log.d("NewsViewModel", "   分类: ${category?.value ?: "全部"}")
+
+        if (keyword.isBlank()) {
+            _searchResultState.value = UiState.Empty
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                _searchResultState.value = UiState.Loading
+
+                // 调用Repository进行搜索
+                val result = repository.searchNews(
+                    keyword = keyword.trim(),
+                    category = category
+                )
+
+                if (result.news.isEmpty()) {
+                    _searchResultState.value = UiState.Empty
+                } else {
+                    // 按相关性得分排序
+                    val sortedNews = sortNewsByRelevance(result.news, keyword.trim())
+                    _searchResultState.value = UiState.Success(sortedNews)
+                }
+
+                Log.d("NewsViewModel", "✅ 搜索完成，找到 ${result.news.size} 条结果")
+
+            } catch (e: IOException) {
+                _searchResultState.value = UiState.Error("网络连接异常: ${e.message}")
+            } catch (e: HttpException) {
+                _searchResultState.value = UiState.Error("服务器错误: ${e.message}")
+            } catch (e: Exception) {
+                _searchResultState.value = UiState.Error("搜索失败: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * 按相关性排序新闻
+     * 计算每篇新闻与搜索关键词的相关性得分，并按得分降序排列
+     * @param newsList 新闻列表
+     * @param keyword 搜索关键词
+     * @return 按相关性排序后的新闻列表
+     */
+    private fun sortNewsByRelevance(newsList: List<News>, keyword: String): List<News> {
+        return newsList.map { news ->
+            // 计算相关性得分
+            val relevanceScore = calculateRelevanceScore(news, keyword)
+            news to relevanceScore
+        }.sortedByDescending { (_, score) ->
+            // 按得分降序排列
+            score
+        }.map { (news, _) ->
+            news
+        }
+    }
+
+    /**
+     * 计算新闻与搜索关键词的相关性得分
+     * @param news 新闻对象
+     * @param keyword 搜索关键词
+     * @return 相关性得分（越高越相关）
+     */
+    private fun calculateRelevanceScore(news: News, keyword: String): Double {
+        var totalScore = 0.0
+
+        // 1. 标题匹配得分（权重较高）
+        if (news.title.contains(keyword, ignoreCase = true)) {
+            totalScore += 10.0
+        }
+
+        // 2. 内容匹配得分（权重中等）
+        if (news.content.contains(keyword, ignoreCase = true)) {
+            totalScore += 5.0
+        }
+
+        // 3. 关键词匹配得分（使用服务器提供的关键词得分）
+        news.keywords.forEach { keywordObj ->
+            when {
+                // 完全匹配
+                keywordObj.word.equals(keyword, ignoreCase = true) -> {
+                    totalScore += keywordObj.score * 20 // 完全匹配给高权重
+                }
+                // 包含关系
+                keywordObj.word.contains(keyword, ignoreCase = true) -> {
+                    totalScore += keywordObj.score * 10
+                }
+                // 被包含关系
+                keyword.contains(keywordObj.word, ignoreCase = true) -> {
+                    totalScore += keywordObj.score * 8
+                }
+            }
+        }
+
+        // 4. 发布时间影响（越新的新闻得分略高）
+        try {
+            val publishTime = news.publishTime
+            // 这里可以根据发布时间给予时间加成，越新的新闻得分稍微高一点
+            // 为了简化，暂时不实现复杂的时间权重计算
+        } catch (e: Exception) {
+            // 时间解析失败时忽略时间因素
+        }
+
+        return totalScore
+    }
+
+    /**
+     * 清除搜索结果
+     */
+    fun clearSearchResults() {
+        Log.d("NewsViewModel", "🧹 clearSearchResults() 被调用")
+        _searchResultState.value = UiState.Empty
     }
 
     // === 私有辅助方法 ===

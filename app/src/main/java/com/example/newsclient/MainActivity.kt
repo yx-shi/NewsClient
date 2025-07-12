@@ -15,8 +15,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
 import com.example.newsclient.data.model.News
+import com.example.newsclient.data.model.NewsCategory
 import com.example.newsclient.ui.screen.NewsListScreen
 import com.example.newsclient.ui.screen.SearchScreen
+import com.example.newsclient.ui.screen.OptimizedSearchScreen
 import com.example.newsclient.ui.screen.NewsDetailScreen
 import com.example.newsclient.ui.screen.TestScreen
 import com.example.newsclient.ui.theme.NewsClientTheme
@@ -59,9 +61,18 @@ fun NewsApp() {
                     NewsDetailViewModel.cacheNews(news)
                     navController.navigate("news_detail/${news.id}")
                 },
-                onSearchClick = {
-                    // 点击搜索时导航到搜索界面
-                    navController.navigate("search")
+                onSearchClick = { currentCategory ->
+                    // 传递当前分类信息到搜索界面
+                    android.util.Log.d("MainActivity", "🔍 搜索栏被点击，当前分类: ${currentCategory?.value ?: "全部"}")
+                    try {
+                        val categoryParam = currentCategory?.value?.let {
+                            java.net.URLEncoder.encode(it, "UTF-8")
+                        } ?: "all"
+                        navController.navigate("search/$categoryParam")
+                        android.util.Log.d("MainActivity", "✅ 导航到搜索界面成功，分类: $categoryParam")
+                    } catch (e: Exception) {
+                        android.util.Log.e("MainActivity", "❌ 导航到搜索界面失败", e)
+                    }
                 }
             )
         }
@@ -82,18 +93,34 @@ fun NewsApp() {
             )
         }
 
-        // 搜索界面
-        composable("search") {
-            SearchScreen(
+        // 搜索界面 - 使用优化版本
+        composable(
+            route = "search/{category}",
+            arguments = listOf(navArgument("category") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val categoryParam = backStackEntry.arguments?.getString("category")
+            val currentCategory = when {
+                categoryParam == "all" -> null
+                categoryParam != null -> {
+                    try {
+                        val decodedCategory = java.net.URLDecoder.decode(categoryParam, "UTF-8")
+                        NewsCategory.entries.find { it.value == decodedCategory }
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                else -> null
+            }
+
+            OptimizedSearchScreen(
                 onBackClick = {
-                    // 返回新闻列表界面
                     navController.popBackStack()
                 },
                 onNewsClick = { news ->
-                    // 缓存新闻数据并使用新闻ID进行导航
                     NewsDetailViewModel.cacheNews(news)
                     navController.navigate("news_detail/${news.id}")
-                }
+                },
+                currentCategory = currentCategory
             )
         }
 
