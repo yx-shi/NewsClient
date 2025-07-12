@@ -94,6 +94,30 @@ interface NewsRepository {
         keyword: String,
         category: NewsCategory? = null
     ): PaginatedNewsResult
+
+    /**
+     * 按时间搜索新闻
+     * @param dateQuery 时间查询字符串 (YYYY-MM-DD格式)
+     * @param category 搜索范围分类，null表示在所有分类中搜索
+     * @return 搜索结果
+     */
+    suspend fun searchNewsByDate(
+        dateQuery: String,
+        category: NewsCategory? = null
+    ): PaginatedNewsResult
+
+    /**
+     * 组合搜索新闻（关键词+时间）
+     * @param keyword 搜索关键词
+     * @param dateQuery 时间查询字符串 (YYYY-MM-DD格式)
+     * @param category 搜索范围分类，null表示在所有分类中搜索
+     * @return 搜索结果
+     */
+    suspend fun searchNewsCombined(
+        keyword: String,
+        dateQuery: String,
+        category: NewsCategory? = null
+    ): PaginatedNewsResult
 }
 
 /**
@@ -302,6 +326,96 @@ class NetworkNewsRepository(
         } catch (e: Exception) {
             // 其他异常返回空的分页结果
             Log.e("NetworkNewsRepository", "💥 搜索新闻失败", e)
+            PaginatedNewsResult(emptyList(), 0, false)
+        }
+    }
+
+    /**
+     * 按时间搜索新闻
+     */
+    override suspend fun searchNewsByDate(
+        dateQuery: String,
+        category: NewsCategory?
+    ): PaginatedNewsResult {
+        return try {
+            // 打印搜索参数
+            Log.d("NetworkNewsRepository", "🕒 按时间搜索新闻，日期：$dateQuery")
+            Log.d("NetworkNewsRepository", "   分类: ${category?.value}")
+
+            // 调用网络API进行新闻搜索
+            val response = newsApiService.searchNewsByDate(
+                dateQuery = dateQuery,
+                categories = category?.value ?: ""
+            )
+
+            // 打印搜索结果信息
+            Log.d("NetworkNewsRepository", "📊 搜索结果：")
+            Log.d("NetworkNewsRepository", "   total: ${response.total}")
+            Log.d("NetworkNewsRepository", "   data.size: ${response.data.size}")
+
+            // 返回搜索结果，分页信息由总数和每页大小计算得出
+            PaginatedNewsResult(response.data, response.total, response.total > response.data.size)
+        } catch (e: retrofit2.HttpException) {
+            // HTTP错误的详细处理
+            Log.e("NetworkNewsRepository", "❌ HTTP错误: ${e.code()} - ${e.message()}")
+            try {
+                val errorBody = e.response()?.errorBody()?.string()
+                Log.e("NetworkNewsRepository", "错误响应内容: $errorBody")
+            } catch (ex: Exception) {
+                Log.e("NetworkNewsRepository", "无法读取错误响应", ex)
+            }
+
+            // 返回空的分页结果
+            PaginatedNewsResult(emptyList(), 0, false)
+        } catch (e: Exception) {
+            // 其他异常返回空的分页结果
+            Log.e("NetworkNewsRepository", "💥 按时间搜索新闻失败", e)
+            PaginatedNewsResult(emptyList(), 0, false)
+        }
+    }
+
+    /**
+     * 组合搜索新闻（关键词+时间）
+     */
+    override suspend fun searchNewsCombined(
+        keyword: String,
+        dateQuery: String,
+        category: NewsCategory?
+    ): PaginatedNewsResult {
+        return try {
+            // 打印搜索参数
+            Log.d("NetworkNewsRepository", "🔍 开始组合搜索新闻，关键词：$keyword，日期：$dateQuery")
+            Log.d("NetworkNewsRepository", "   分类: ${category?.value}")
+
+            // 调用网络API进行新闻搜索
+            val response = newsApiService.searchNewsCombined(
+                keyword = keyword,
+                dateQuery = dateQuery,
+                categories = category?.value ?: ""
+            )
+
+            // 打印搜索结果信息
+            Log.d("NetworkNewsRepository", "📊 搜索结果：")
+            Log.d("NetworkNewsRepository", "   total: ${response.total}")
+            Log.d("NetworkNewsRepository", "   data.size: ${response.data.size}")
+
+            // 返回搜索结果，分页信息由总数和每页大小计算得出
+            PaginatedNewsResult(response.data, response.total, response.total > response.data.size)
+        } catch (e: retrofit2.HttpException) {
+            // HTTP错误的详细处理
+            Log.e("NetworkNewsRepository", "❌ HTTP错误: ${e.code()} - ${e.message()}")
+            try {
+                val errorBody = e.response()?.errorBody()?.string()
+                Log.e("NetworkNewsRepository", "错误响应内容: $errorBody")
+            } catch (ex: Exception) {
+                Log.e("NetworkNewsRepository", "无法读取错误响应", ex)
+            }
+
+            // 返回空的分页结果
+            PaginatedNewsResult(emptyList(), 0, false)
+        } catch (e: Exception) {
+            // 其他异常返回空的分页结果
+            Log.e("NetworkNewsRepository", "💥 组合搜索新闻失败", e)
             PaginatedNewsResult(emptyList(), 0, false)
         }
     }

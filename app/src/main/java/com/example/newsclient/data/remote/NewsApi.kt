@@ -44,6 +44,25 @@ interface NewsApiService {
         @Query("page") page: Int = 1,
         @Query("size") size: Int = 100  // 搜索时获取更多结果用于排序
     ): NewsResponse
+
+    @GET("svc/news/queryNewsList")
+    suspend fun searchNewsByDate(
+        @Query("startDate") dateQuery: String,
+        @Query("endDate") endDate: String = dateQuery, // 默认结束日期与开始日期相同
+        @Query("categories") categories: String = "",
+        @Query("page") page: Int = 1,
+        @Query("size") size: Int = 100  // 获取更多结果
+    ): NewsResponse
+
+    @GET("svc/news/queryNewsList")
+    suspend fun searchNewsCombined(
+        @Query("words") keyword: String,
+        @Query("startDate") dateQuery: String,
+        @Query("endDate") endDate: String = dateQuery, // 默认结束日期与开始日期相同
+        @Query("categories") categories: String = "",
+        @Query("page") page: Int = 1,
+        @Query("size") size: Int = 100  // 获取更多结果用于排序
+    ): NewsResponse
 }
 
 /**

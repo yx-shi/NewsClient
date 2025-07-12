@@ -18,7 +18,7 @@ import com.example.newsclient.data.model.News
 import com.example.newsclient.data.model.NewsCategory
 import com.example.newsclient.ui.screen.NewsListScreen
 import com.example.newsclient.ui.screen.SearchScreen
-import com.example.newsclient.ui.screen.OptimizedSearchScreen
+import com.example.newsclient.ui.screen.SimplifiedSearchScreen
 import com.example.newsclient.ui.screen.NewsDetailScreen
 import com.example.newsclient.ui.screen.TestScreen
 import com.example.newsclient.ui.theme.NewsClientTheme
@@ -93,7 +93,7 @@ fun NewsApp() {
             )
         }
 
-        // 搜索界面 - 使用优化版本
+        // 搜索界面 - 使用简化版
         composable(
             route = "search/{category}",
             arguments = listOf(navArgument("category") { type = NavType.StringType })
@@ -112,7 +112,7 @@ fun NewsApp() {
                 else -> null
             }
 
-            OptimizedSearchScreen(
+            SimplifiedSearchScreen(
                 onBackClick = {
                     navController.popBackStack()
                 },

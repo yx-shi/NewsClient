@@ -476,16 +476,18 @@ class NewsViewModel(
     // === 搜索相关方法 ===
 
     /**
-     * 搜索新闻
+     * 搜索新闻（支持关键词+时间组合搜索）
      * @param keyword 搜索关键词
      * @param category 搜索范围分类，null表示在所有分类中搜索
+     * @param dateQuery 可选的时间查询，支持组合搜索
      */
-    fun searchNews(keyword: String, category: NewsCategory? = null) {
+    fun searchNews(keyword: String, category: NewsCategory? = null, dateQuery: String? = null) {
         Log.d("NewsViewModel", "🔍 searchNews() 被调用:")
         Log.d("NewsViewModel", "   关键词: '$keyword'")
         Log.d("NewsViewModel", "   分类: ${category?.value ?: "全部"}")
+        Log.d("NewsViewModel", "   日期查询: ${dateQuery ?: "无"}")
 
-        if (keyword.isBlank()) {
+        if (keyword.isBlank() && dateQuery.isNullOrBlank()) {
             _searchResultState.value = UiState.Empty
             return
         }
@@ -494,17 +496,39 @@ class NewsViewModel(
             try {
                 _searchResultState.value = UiState.Loading
 
-                // 调用Repository进行搜索
-                val result = repository.searchNews(
-                    keyword = keyword.trim(),
-                    category = category
-                )
+                val result = if (dateQuery.isNullOrBlank()) {
+                    // 纯关键词搜索
+                    repository.searchNews(
+                        keyword = keyword.trim(),
+                        category = category
+                    )
+                } else {
+                    // 关键词+时间组合搜索
+                    val standardDate = parseAndFormatDate(dateQuery.trim())
+                    if (standardDate == null) {
+                        _searchResultState.value = UiState.Error("时间格式不正确，请使用 YYYY-MM-DD 或 DD/MM/YYYY 格式")
+                        return@launch
+                    }
+
+                    Log.d("NewsViewModel", "   解析后的标准时间: '$standardDate'")
+
+                    // 调用Repository进行组合搜索
+                    repository.searchNewsCombined(
+                        keyword = keyword.trim(),
+                        dateQuery = standardDate,
+                        category = category
+                    )
+                }
 
                 if (result.news.isEmpty()) {
                     _searchResultState.value = UiState.Empty
                 } else {
-                    // 按相关性得分排序
-                    val sortedNews = sortNewsByRelevance(result.news, keyword.trim())
+                    // 按相关性得分排序（如果有关键词）或按时间排序
+                    val sortedNews = if (keyword.isNotBlank()) {
+                        sortNewsByRelevance(result.news, keyword.trim())
+                    } else {
+                        result.news.sortedByDescending { it.publishTime }
+                    }
                     _searchResultState.value = UiState.Success(sortedNews)
                 }
 
@@ -595,6 +619,93 @@ class NewsViewModel(
     fun clearSearchResults() {
         Log.d("NewsViewModel", "🧹 clearSearchResults() 被调用")
         _searchResultState.value = UiState.Empty
+    }
+
+    /**
+     * 按时间搜索新闻
+     * @param dateQuery 时间查询字符串，支持 YYYY-MM-DD 或 DD/MM/YYYY 格式
+     * @param category 搜索范围分类，null表示在所有分类中搜索
+     */
+    fun searchNewsByDate(dateQuery: String, category: NewsCategory? = null) {
+        Log.d("NewsViewModel", "📅 searchNewsByDate() 被调用:")
+        Log.d("NewsViewModel", "   时间查询: '$dateQuery'")
+        Log.d("NewsViewModel", "   分类: ${category?.value ?: "全部"}")
+
+        if (dateQuery.isBlank()) {
+            _searchResultState.value = UiState.Empty
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                _searchResultState.value = UiState.Loading
+
+                // 解析时间查询并转换为标准格式
+                val standardDate = parseAndFormatDate(dateQuery.trim())
+                if (standardDate == null) {
+                    _searchResultState.value = UiState.Error("时间格式不正确，请使用 YYYY-MM-DD 或 DD/MM/YYYY 格式")
+                    return@launch
+                }
+
+                Log.d("NewsViewModel", "   解析后的标准时间: '$standardDate'")
+
+                // 调用Repository进行时间搜索
+                val result = repository.searchNewsByDate(
+                    dateQuery = standardDate,
+                    category = category
+                )
+
+                if (result.news.isEmpty()) {
+                    _searchResultState.value = UiState.Empty
+                } else {
+                    // 按发布时间排序（最新的在前）
+                    val sortedNews = result.news.sortedByDescending { it.publishTime }
+                    _searchResultState.value = UiState.Success(sortedNews)
+                }
+
+                Log.d("NewsViewModel", "✅ 时间搜索完成，找到 ${result.news.size} 条结果")
+
+            } catch (e: IOException) {
+                _searchResultState.value = UiState.Error("网络连接异常: ${e.message}")
+            } catch (e: HttpException) {
+                _searchResultState.value = UiState.Error("服务器错误: ${e.message}")
+            } catch (e: Exception) {
+                _searchResultState.value = UiState.Error("时间搜索失败: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * 解析并格式化时间查询
+     * 支持 YYYY-MM-DD 和 DD/MM/YYYY 两种格式
+     * @param dateQuery 用户输入的时间字符串
+     * @return 标准格式的时间字符串 (YYYY-MM-DD) 或 null（如果格式不正确）
+     */
+    private fun parseAndFormatDate(dateQuery: String): String? {
+        return try {
+            when {
+                // YYYY-MM-DD 或 YYYY/MM/DD 格式
+                dateQuery.matches(Regex("""\d{4}[-/]\d{1,2}[-/]\d{1,2}""")) -> {
+                    val parts = dateQuery.split(Regex("[-/]"))
+                    val year = parts[0].padStart(4, '0')
+                    val month = parts[1].padStart(2, '0')
+                    val day = parts[2].padStart(2, '0')
+                    "$year-$month-$day"
+                }
+                // DD/MM/YYYY 格式
+                dateQuery.matches(Regex("""\d{1,2}/\d{1,2}/\d{4}""")) -> {
+                    val parts = dateQuery.split("/")
+                    val day = parts[0].padStart(2, '0')
+                    val month = parts[1].padStart(2, '0')
+                    val year = parts[2]
+                    "$year-$month-$day"
+                }
+                else -> null
+            }
+        } catch (e: Exception) {
+            Log.e("NewsViewModel", "时间解析失败: ${e.message}")
+            null
+        }
     }
 
     // === 私有辅助方法 ===
