@@ -1,6 +1,7 @@
 package com.example.newsclient.ui.screen
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,7 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.DateRange
@@ -37,21 +38,12 @@ import com.example.newsclient.data.model.NewsCategory
 import com.example.newsclient.ui.NewsViewModel
 import com.example.newsclient.ui.UiState
 import com.example.newsclient.ui.components.DatePicker
-import com.example.newsclient.ui.components.formatSelectedDate
-import com.example.newsclient.ui.components.formatDateRange
 import android.util.Log
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /**
- * 优化的搜索界面
- * 1. 简化状态管理：点击搜索栏直接回到输入状态
- * 2. 统一新闻显示：使用与主页面相同的新闻卡片组件
+ * 简化的搜索界面 - 重构版本
+ * 分离搜索输入状态和结果显示状态，提高响应速度
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,491 +53,463 @@ fun SimplifiedSearchScreen(
     currentCategory: NewsCategory? = null,
     viewModel: NewsViewModel = viewModel(factory = NewsViewModel.Factory)
 ) {
+    // 简化状态管理
     var searchText by remember { mutableStateOf("") }
-    var hasExecutedSearch by remember { mutableStateOf(false) }
-    var searchMode by remember { mutableStateOf(SearchMode.KEYWORD) }
-
-    // 日期选择相关状态
-    var showDatePicker by remember { mutableStateOf(false) }
     var selectedYear by remember { mutableStateOf<Int?>(null) }
     var selectedMonth by remember { mutableStateOf<Int?>(null) }
     var selectedDay by remember { mutableStateOf<Int?>(null) }
-    val selectedDateString = remember(selectedYear, selectedMonth, selectedDay) {
-        formatSelectedDate(selectedYear, selectedMonth, selectedDay)
-    }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var isInSearchMode by remember { mutableStateOf(true) } // 核心状态：是否在搜索模式
+    var hasSearched by remember { mutableStateOf(false) } // 记录是否已经搜索过
 
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val focusRequester = remember { FocusRequester() }
-    val coroutineScope = rememberCoroutineScope()
-
-    // 搜索结果状态
     val searchResultState by viewModel.searchResultState.collectAsState()
 
-    // 简化的状态：只关心是否有搜索文本或日期筛选
-    val isInSearchMode = searchText.isNotEmpty() || selectedDateString != null
+    // 搜索函数
+    fun performSearch() {
+        if (searchText.isBlank() && selectedYear == null) return
 
-    // 检测搜索内容是否为时间格式
-    LaunchedEffect(searchText) {
-        if (searchText.isNotEmpty()) {
-            val newMode = detectSearchMode(searchText)
-            if (newMode != searchMode) {
-                searchMode = newMode
+        val dateQuery = buildDateQuery(selectedYear, selectedMonth, selectedDay)
+
+        Log.d("SimplifiedSearchScreen", "搜索 - 关键词: '$searchText', 日期: $dateQuery")
+
+        when {
+            searchText.isNotBlank() && dateQuery != null -> {
+                viewModel.searchNews(searchText.trim(), currentCategory, dateQuery)
+            }
+            searchText.isNotBlank() -> {
+                viewModel.searchNews(searchText.trim(), currentCategory)
+            }
+            dateQuery != null -> {
+                viewModel.searchNewsByDate(dateQuery, currentCategory)
             }
         }
+
+        hasSearched = true
+        isInSearchMode = false // 切换到结果显示模式
     }
 
-    // 初始聚焦
+    // 根据当前状态显示不同的界面
+    if (isInSearchMode) {
+        SearchInputScreen(
+            searchText = searchText,
+            onSearchTextChange = { searchText = it },
+            selectedYear = selectedYear,
+            selectedMonth = selectedMonth,
+            selectedDay = selectedDay,
+            showDatePicker = showDatePicker,
+            onDatePickerToggle = { showDatePicker = it },
+            onDateSelected = { year, month, day ->
+                selectedYear = year
+                selectedMonth = month
+                selectedDay = day
+                showDatePicker = false
+            },
+            onClearDate = {
+                selectedYear = null
+                selectedMonth = null
+                selectedDay = null
+            },
+            onBackClick = onBackClick,
+            onSearch = { performSearch() },
+            currentCategory = currentCategory
+        )
+    } else {
+        SearchResultScreen(
+            searchResultState = searchResultState,
+            onNewsClick = onNewsClick,
+            onBackToSearch = {
+                isInSearchMode = true
+                Log.d("SimplifiedSearchScreen", "点击搜索栏，切换到搜索模式")
+            },
+            searchText = searchText,
+            selectedYear = selectedYear,
+            selectedMonth = selectedMonth,
+            selectedDay = selectedDay,
+            hasSearched = hasSearched
+        )
+    }
+}
+
+/**
+ * 搜索输入界面
+ */
+@Composable
+private fun SearchInputScreen(
+    searchText: String,
+    onSearchTextChange: (String) -> Unit,
+    selectedYear: Int?,
+    selectedMonth: Int?,
+    selectedDay: Int?,
+    showDatePicker: Boolean,
+    onDatePickerToggle: (Boolean) -> Unit,
+    onDateSelected: (Int?, Int?, Int?) -> Unit,
+    onClearDate: () -> Unit,
+    onBackClick: () -> Unit,
+    onSearch: () -> Unit,
+    currentCategory: NewsCategory?
+) {
+    val focusRequester = remember { FocusRequester() }
+
+    // 自动聚焦
     LaunchedEffect(Unit) {
         delay(100)
         focusRequester.requestFocus()
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // 增强的搜索栏，支持时间搜索
-        AdvancedSearchBar(
+    Column(modifier = Modifier.fillMaxSize()) {
+        // 搜索栏
+        SearchBar(
             searchText = searchText,
-            searchMode = searchMode,
-            hasDateFilter = selectedDateString != null,
-            onSearchTextChange = { newText ->
-                searchText = newText
-                // 文本为空且没有日期筛选时，清空搜索结果和执行状态
-                if (newText.isEmpty() && selectedDateString == null) {
-                    viewModel.clearSearchResults()
-                    hasExecutedSearch = false
-                    searchMode = SearchMode.KEYWORD
-                }
-            },
-            onBackClick = {
-                keyboardController?.hide()
-                onBackClick()
-            },
-            onSearchSubmit = {
-                if (searchText.isNotBlank() || selectedDateString != null) {
-                    Log.d("SimplifiedSearchScreen", "搜索: 关键词='$searchText', 日期='${selectedDateString ?: "不限"}', 模式: $searchMode")
-                    hasExecutedSearch = true
-
-                    // 根据是否有日期筛选决定搜索方式
-                    if (selectedDateString != null) {
-                        // 将模糊日期转换为日期范围
-                        val dateRange = formatDateRange(selectedYear, selectedMonth, selectedDay)
-
-                        if (dateRange != null) {
-                            val (startDate, endDate) = dateRange
-                            Log.d("SimplifiedSearchScreen", "日期范围: $startDate 到 $endDate")
-
-                            // 构建日期范围字符串，让服务器知道这是一个日期范围
-                            val dateRangeQuery = if (startDate == endDate) {
-                                // 如果开始和结束日期相同，就是精确日期
-                                startDate
-                            } else {
-                                // 如果不同，构建范围查询字符串
-                                "$startDate,$endDate"
-                            }
-
-                            if (searchText.isBlank()) {
-                                // 纯日期搜索
-                                viewModel.searchNewsByDate(dateRangeQuery, currentCategory)
-                            } else {
-                                // 关键词+日期组合搜索
-                                viewModel.searchNews(searchText.trim(), currentCategory, dateRangeQuery)
-                            }
-                        } else {
-                            // 如果日期范围为空，执行普通关键词搜索
-                            if (searchText.isNotBlank()) {
-                                viewModel.searchNews(searchText.trim(), currentCategory)
-                            }
-                        }
-                    } else if (searchMode == SearchMode.DATE) {
-                        // 从文本中识别出的日期搜索
-                        val parsedQuery = parseSearchQuery(searchText.trim())
-                        viewModel.searchNewsByDate(parsedQuery.dateQuery ?: "", currentCategory)
-                    } else if (searchMode == SearchMode.COMBINED) {
-                        // 从文本中识别出的关键词+日期组合搜索
-                        val parsedQuery = parseSearchQuery(searchText.trim())
-                        viewModel.searchNews(
-                            parsedQuery.keyword ?: "",
-                            currentCategory,
-                            parsedQuery.dateQuery
-                        )
-                    } else {
-                        // 普通关键词搜索
-                        viewModel.searchNews(searchText.trim(), currentCategory)
-                    }
-
-                    keyboardController?.hide()
-                }
-            },
-            onClearSearch = {
-                searchText = ""
-                selectedYear = null
-                selectedMonth = null
-                selectedDay = null
-                hasExecutedSearch = false
-                searchMode = SearchMode.KEYWORD
-                viewModel.clearSearchResults()
-                focusRequester.requestFocus()
-            },
-            onSearchBarClick = {
-                // 简化点击处理，只负责获取焦点，不再清空搜索文本
-                focusRequester.requestFocus()
-            },
-            onDatePickerClick = {
-                showDatePicker = true
-                keyboardController?.hide()
-            },
+            onSearchTextChange = onSearchTextChange,
+            onBackClick = onBackClick,
+            onSearch = onSearch,
+            onDatePickerClick = { onDatePickerToggle(true) },
+            onClearText = { onSearchTextChange("") },
             focusRequester = focusRequester,
-            isLoading = searchResultState is UiState.Loading,
-            selectedYear = selectedYear,
-            selectedMonth = selectedMonth,
-            selectedDay = selectedDay
+            hasDateFilter = selectedYear != null
         )
 
+        // 日期筛选显示
+        if (selectedYear != null) {
+            DateFilterCard(
+                selectedYear = selectedYear,
+                selectedMonth = selectedMonth,
+                selectedDay = selectedDay,
+                onClearDate = onClearDate
+            )
+        }
+
         // 分类信息
-        if (currentCategory != null) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Text(
-                    text = "在「${currentCategory.value}」分类中搜索",
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
+        currentCategory?.let { category ->
+            CategoryCard(category = category)
         }
 
-        // 日期筛选信息
-        if (selectedDateString != null) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DateRange,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = when {
-                                selectedYear != null && selectedMonth != null && selectedDay != null ->
-                                    "按日期: ${selectedYear}年${selectedMonth}月${selectedDay}日"
-                                selectedYear != null && selectedMonth != null ->
-                                    "按月份: ${selectedYear}年${selectedMonth}月"
-                                selectedYear != null ->
-                                    "按年份: ${selectedYear}年"
-                                else -> "日期筛选"
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-
-                    IconButton(
-                        onClick = {
-                            selectedYear = null
-                            selectedMonth = null
-                            selectedDay = null
-
-                            // 如果搜索框也为空，清空搜索结果
-                            if (searchText.isEmpty()) {
-                                viewModel.clearSearchResults()
-                                hasExecutedSearch = false
-                            } else {
-                                // 否则执行纯关键词搜索
-                                coroutineScope.launch {
-                                    delay(100)
-                                    viewModel.searchNews(searchText.trim(), currentCategory)
-                                }
-                            }
-                        },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = "清除日期筛选",
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
-        }
-
-        // 内容区域
-        when {
-            !isInSearchMode -> {
-                // 输入提示状态
-                WelcomeContent()
-            }
-            !hasExecutedSearch -> {
-                // 有搜索文本但还没执行搜索时，显示输入提示
-                WelcomeContent()
-            }
-            else -> {
-                // 已执行搜索时显示结果
-                when (val state = searchResultState) {
-                    is UiState.Loading -> {
-                        LoadingContent()
-                    }
-                    is UiState.Success -> {
-                        if (state.data.isEmpty()) {
-                            EmptyResultContent()
-                        } else {
-                            UnifiedSearchResultList(
-                                searchResults = state.data,
-                                onNewsClick = onNewsClick
-                            )
-                        }
-                    }
-                    is UiState.Error -> {
-                        ErrorContent(message = state.message)
-                    }
-                    is UiState.Empty -> {
-                        EmptyResultContent()
-                    }
-                }
-            }
-        }
+        // 欢迎界面
+        WelcomeContent()
     }
 
-    // 日期选择器对话框
+    // 日期选择器
     if (showDatePicker) {
-        Dialog(onDismissRequest = { showDatePicker = false }) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                DatePicker(
-                    onDateSelected = { year, month, day ->
-                        selectedYear = year
-                        selectedMonth = month
-                        selectedDay = day
+        DatePickerDialog(
+            onDateSelected = onDateSelected,
+            onDismiss = { onDatePickerToggle(false) }
+        )
+    }
+}
 
-                        // 选择日期后不自动执行搜索，让用户手动触发
-                        // 移除自动搜索逻辑，用户需要手动点击搜索按钮
-                    },
-                    onDismiss = { showDatePicker = false }
-                )
+/**
+ * 搜索结果界面
+ */
+@Composable
+private fun SearchResultScreen(
+    searchResultState: UiState<List<News>>,
+    onNewsClick: (News) -> Unit,
+    onBackToSearch: () -> Unit,
+    searchText: String,
+    selectedYear: Int?,
+    selectedMonth: Int?,
+    selectedDay: Int?,
+    hasSearched: Boolean
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // 结果页面的搜索栏 - 点击快速回到搜索模式
+        ResultSearchBar(
+            searchText = searchText,
+            selectedYear = selectedYear,
+            selectedMonth = selectedMonth,
+            selectedDay = selectedDay,
+            onBackToSearch = onBackToSearch
+        )
+
+        // 搜索结果内容
+        when (searchResultState) {
+            is UiState.Loading -> LoadingContent()
+            is UiState.Success -> {
+                if (searchResultState.data.isEmpty()) {
+                    EmptyResultContent()
+                } else {
+                    SearchResultList(
+                        searchResults = searchResultState.data,
+                        onNewsClick = onNewsClick
+                    )
+                }
             }
+            is UiState.Error -> ErrorContent(searchResultState.message)
+            else -> EmptyResultContent()
         }
     }
 }
 
 /**
- * 优化的搜索栏组件
+ * 搜索栏组件
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AdvancedSearchBar(
+private fun SearchBar(
     searchText: String,
-    searchMode: SearchMode,
-    hasDateFilter: Boolean,
     onSearchTextChange: (String) -> Unit,
     onBackClick: () -> Unit,
-    onSearchSubmit: () -> Unit,
-    onClearSearch: () -> Unit,
-    onSearchBarClick: () -> Unit,
+    onSearch: () -> Unit,
     onDatePickerClick: () -> Unit,
+    onClearText: () -> Unit,
     focusRequester: FocusRequester,
-    isLoading: Boolean,
-    selectedYear: Int? = null,
-    selectedMonth: Int? = null,
-    selectedDay: Int? = null
+    hasDateFilter: Boolean
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        tonalElevation = 4.dp
     ) {
-        Surface(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            tonalElevation = 4.dp,
-            color = MaterialTheme.colorScheme.surface
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBackClick) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回"
+                )
+            }
+
+            OutlinedTextField(
+                value = searchText,
+                onValueChange = onSearchTextChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester),
+                placeholder = { Text("搜索新闻...") },
+                trailingIcon = {
+                    Row {
+                        if (searchText.isNotEmpty()) {
+                            IconButton(onClick = onClearText) {
+                                Icon(Icons.Default.Clear, contentDescription = "清除")
+                            }
+                        }
+
+                        IconButton(onClick = onDatePickerClick) {
+                            Icon(
+                                imageVector = Icons.Default.DateRange,
+                                contentDescription = "选择日期",
+                                tint = if (hasDateFilter) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onSearch,
+                            enabled = searchText.isNotBlank() || hasDateFilter
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "搜索",
+                                tint = if (searchText.isNotBlank() || hasDateFilter) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                singleLine = true
+            )
+        }
+    }
+}
+
+/**
+ * 结果页面的搜索栏 - 点击快速回到搜索模式
+ */
+@Composable
+private fun ResultSearchBar(
+    searchText: String,
+    selectedYear: Int?,
+    selectedMonth: Int?,
+    selectedDay: Int?,
+    onBackToSearch: () -> Unit
+) {
+    // 使用 Box 包装来确保点击事件优先级
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .clickable(
+                indication = null, // 移除水波纹效果避免冲突
+                interactionSource = remember { MutableInteractionSource() }
+            ) {
+                Log.d("ResultSearchBar", "搜索栏被点击")
+                onBackToSearch()
+            }
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp),
+                    .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 返回按钮
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "返回",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                // 搜索输入框
-                OutlinedTextField(
-                    value = searchText,
-                    onValueChange = onSearchTextChange,
-                    modifier = Modifier
-                        .weight(1f)
-                        .focusRequester(focusRequester),
-                    placeholder = {
-                        Text(
-                            text = "搜索新闻...",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    trailingIcon = {
-                        Row {
-                            // 清除按钮
-                            if (searchText.isNotEmpty()) {
-                                IconButton(onClick = onClearSearch) {
-                                    Icon(
-                                        imageVector = Icons.Default.Clear,
-                                        contentDescription = "清除",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            // 日期选择按钮
-                            IconButton(
-                                onClick = onDatePickerClick,
-                                enabled = !isLoading
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.DateRange,
-                                    contentDescription = "选择日期",
-                                    tint = if (hasDateFilter || searchMode == SearchMode.DATE) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
-                                )
-                            }
-
-                            // 搜索按钮
-                            IconButton(
-                                onClick = onSearchSubmit,
-                                enabled = !isLoading && (searchText.isNotBlank() || hasDateFilter)
-                            ) {
-                                if (isLoading) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = "搜索",
-                                        tint = if (searchText.isNotBlank() || hasDateFilter) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Search
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onSearch = { onSearchSubmit() }
-                    ),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                    )
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-        }
 
-        // 显示选中的日期标签
-        AnimatedVisibility(
-            visible = hasDateFilter,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 8.dp),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = MaterialTheme.shapes.small,
-                tonalElevation = 1.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DateRange,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
+                Spacer(modifier = Modifier.width(12.dp))
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = formatDateForDisplay(selectedYear, selectedMonth, selectedDay),
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontWeight = FontWeight.Medium
+                        text = if (searchText.isNotEmpty()) searchText else "点击重新搜索",
+                        fontSize = 16.sp,
+                        color = if (searchText.isNotEmpty()) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                     )
 
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    Text(
-                        text = "点击图标更改",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                    )
+                    if (selectedYear != null) {
+                        Text(
+                            text = formatDateDisplay(selectedYear, selectedMonth, selectedDay),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
+
+                // 添加一个视觉指示器，表明这是可点击的
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "点击重新搜索",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
 }
 
 /**
- * 统一的搜索结果列表 - 使用与主页面相同的样式
+ * 日期筛选卡片
  */
 @Composable
-private fun UnifiedSearchResultList(
+private fun DateFilterCard(
+    selectedYear: Int?,
+    selectedMonth: Int?,
+    selectedDay: Int?,
+    onClearDate: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.DateRange,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = formatDateDisplay(selectedYear, selectedMonth, selectedDay),
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+
+            IconButton(onClick = onClearDate) {
+                Icon(
+                    imageVector = Icons.Default.Clear,
+                    contentDescription = "清除日期",
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 分类卡片
+ */
+@Composable
+private fun CategoryCard(category: NewsCategory) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Text(
+            text = "在「${category.value}」分类中搜索",
+            modifier = Modifier.padding(12.dp),
+            color = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+    }
+}
+
+/**
+ * 欢迎内容
+ */
+@Composable
+private fun WelcomeContent() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Text(text = "🔍", fontSize = 48.sp)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "输入关键词或选择日期进行搜索",
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * 搜索结果列表
+ */
+@Composable
+private fun SearchResultList(
     searchResults: List<News>,
     onNewsClick: (News) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(12.dp),
+        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 结果统计
         item {
             Text(
                 text = "找到 ${searchResults.size} 条相关新闻",
@@ -555,138 +519,14 @@ private fun UnifiedSearchResultList(
             )
         }
 
-        // 搜索结果 - 使用统一的新闻项组件
-        items(
-            items = searchResults,
-            key = { news -> news.id }
-        ) { news ->
-            UnifiedNewsItem(
-                news = news,
-                onClick = { onNewsClick(news) }
-            )
+        items(searchResults) { news ->
+            NewsCard(news = news, onClick = { onNewsClick(news) })
         }
     }
 }
 
 /**
- * 统一的新闻项组件 - 与主页面保持一致的样式和图片处理
- */
-@Composable
-private fun UnifiedNewsItem(
-    news: News,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
-            // 新闻标题
-            Text(
-                text = news.title,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 新闻图片（与主页面完全相同的处理逻辑）
-            val processedImageUrl = news.imageUrl.let { url ->
-                when {
-                    url.isBlank() -> ""
-                    url == "[]" -> ""
-                    url.startsWith("[") && url.endsWith("]") -> {
-                        // 处理可能的数组格式，提取第一张有效图片
-                        url.substring(1, url.length - 1)
-                            .split(",")
-                            .asSequence()
-                            .map { it.trim().removePrefix("\"").removeSuffix("\"") }
-                            .filter { it.isNotEmpty() && (it.startsWith("http://") || it.startsWith("https://")) }
-                            .firstOrNull() ?: ""
-                    }
-                    url.startsWith("http://") || url.startsWith("https://") -> url
-                    else -> ""
-                }
-            }
-
-            if (processedImageUrl.isNotEmpty()) {
-                // 智能图片加载：先尝试HTTPS，失败后自动回退到HTTP
-                var finalImageUrl by remember { mutableStateOf(processedImageUrl) }
-                var hasTriedFallback by remember { mutableStateOf(false) }
-
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(finalImageUrl)
-                        .crossfade(true)
-                        .listener(
-                            onError = { _, result ->
-                                Log.w("UnifiedNewsItem", "图片加载失败: $finalImageUrl, 错误: ${result.throwable.message}")
-
-                                // 如果是HTTPS失败且还没尝试过HTTP回退，则尝试HTTP
-                                if (!hasTriedFallback && finalImageUrl.startsWith("https://")) {
-                                    val httpUrl = finalImageUrl.replaceFirst("https://", "http://")
-                                    Log.i("UnifiedNewsItem", "尝试HTTP回退: $httpUrl")
-                                    finalImageUrl = httpUrl
-                                    hasTriedFallback = true
-                                }
-                            }
-                        )
-                        .build(),
-                    contentDescription = "新闻图片",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 200.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            // 新闻摘要
-            Text(
-                text = news.content,
-                fontSize = 14.sp,
-                color = Color.Gray,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 新闻元信息
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = news.publisher,
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
-
-                Text(
-                    text = formatTime(news.publishTime),
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
-            }
-        }
-    }
-}
-
-/**
- * 加载状态内容
+ * 加载内容
  */
 @Composable
 private fun LoadingContent() {
@@ -694,18 +534,10 @@ private fun LoadingContent() {
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.primary
-            )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator()
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "正在搜索...",
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text(text = "正在搜索...", fontSize = 16.sp)
         }
     }
 }
@@ -719,25 +551,13 @@ private fun EmptyResultContent() {
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "😔",
-                fontSize = 48.sp
-            )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "😔", fontSize = 48.sp)
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "很抱歉，没有找到相关新闻",
+                text = "没有找到相关新闻",
                 fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "请尝试使用其他关键词搜索",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                fontWeight = FontWeight.Medium
             )
         }
     }
@@ -752,13 +572,8 @@ private fun ErrorContent(message: String) {
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "❌",
-                fontSize = 48.sp
-            )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "❌", fontSize = 48.sp)
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "搜索失败",
@@ -777,82 +592,158 @@ private fun ErrorContent(message: String) {
 }
 
 /**
- * 欢迎内容
+ * 日期选择器对话框
  */
 @Composable
-private fun WelcomeContent() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp)
+private fun DatePickerDialog(
+    onDateSelected: (Int?, Int?, Int?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium
         ) {
-            Text(
-                text = "🔍",
-                fontSize = 48.sp
+            DatePicker(
+                onDateSelected = onDateSelected,
+                onDismiss = onDismiss
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "智能搜索支持多种模式",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 搜索提示卡片
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = "💡 搜索提示",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "• 关键词搜索：科技、体育、政治等",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "• 时间搜索：2024-01-15 或 15/01/2024",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "• 组合搜索：科技 2024-01-15",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
         }
     }
 }
 
 /**
- * 格式化时间
+ * 新闻卡片组件
  */
+@Composable
+private fun NewsCard(
+    news: News,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            // 标题
+            Text(
+                text = news.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 图片
+            val imageUrl = processImageUrl(news.imageUrl)
+            if (imageUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(imageUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "新闻图片",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // 内容
+            Text(
+                text = news.content,
+                fontSize = 14.sp,
+                color = Color.Gray,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 发布信息
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = news.publisher,
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+                Text(
+                    text = formatTime(news.publishTime),
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+    }
+}
+
+// 辅助函数
+private fun buildDateQuery(year: Int?, month: Int?, day: Int?): String? {
+    return if (year != null) {
+        when {
+            day != null -> {
+                // 精确到天：2025-01-15
+                String.format("%04d-%02d-%02d", year, month ?: 1, day)
+            }
+            month != null -> {
+                // 精确到月：2025-01-01,2025-01-31
+                val startDate = String.format("%04d-%02d-01", year, month)
+                val endDate = String.format("%04d-%02d-%02d", year, month, getDaysInMonth(year, month))
+                "$startDate,$endDate"
+            }
+            else -> {
+                // 精确到年：2025-01-01,2025-12-31
+                "$year-01-01,$year-12-31"
+            }
+        }
+    } else null
+}
+
+private fun formatDateDisplay(year: Int?, month: Int?, day: Int?): String {
+    return when {
+        day != null -> "${year}年${month}月${day}日"
+        month != null -> "${year}年${month}月"
+        year != null -> "${year}年"
+        else -> "日期筛选"
+    }
+}
+
+private fun processImageUrl(imageUrl: String): String {
+    return when {
+        imageUrl.isBlank() -> ""
+        imageUrl == "[]" -> ""
+        imageUrl.startsWith("[") && imageUrl.endsWith("]") -> {
+            imageUrl.substring(1, imageUrl.length - 1)
+                .split(",")
+                .map { it.trim().removePrefix("\"").removeSuffix("\"") }
+                .firstOrNull { it.startsWith("http") } ?: ""
+        }
+        imageUrl.startsWith("http") -> imageUrl
+        else -> ""
+    }
+}
+
 private fun formatTime(publishTime: String): String {
     return try {
-        val parts = publishTime.split(" ")
-        if (parts.size >= 2) {
-            val datePart = parts[0]
-            val timePart = parts[1].substring(0, 5)
-            "$datePart $timePart"
+        // 简单的时间格式化，可以根据需要调整
+        if (publishTime.length >= 10) {
+            publishTime.substring(0, 10)
         } else {
             publishTime
         }
@@ -861,93 +752,15 @@ private fun formatTime(publishTime: String): String {
     }
 }
 
-/**
- * 搜索模式
- */
-enum class SearchMode {
-    KEYWORD,    // 纯关键词搜索
-    DATE,       // 纯日期搜索
-    COMBINED    // 关键词+日期组合搜索
-}
-
-/**
- * 搜索查询解析结果
- */
-data class ParsedSearchQuery(
-    val keyword: String? = null,
-    val dateQuery: String? = null,
-    val mode: SearchMode
-)
-
-/**
- * 检测并解析搜索查询
- */
-private fun parseSearchQuery(query: String): ParsedSearchQuery {
-    val trimmedQuery = query.trim()
-
-    // 日期正则表达式
-    val dateRegex1 = Regex("""\d{4}[-/]\d{1,2}[-/]\d{1,2}""") // YYYY-MM-DD
-    val dateRegex2 = Regex("""\d{1,2}/\d{1,2}/\d{4}""")       // DD/MM/YYYY
-
-    // 查找所有日期匹配
-    val dateMatches = (dateRegex1.findAll(trimmedQuery) + dateRegex2.findAll(trimmedQuery)).toList()
-
-    return when {
-        dateMatches.isEmpty() -> {
-            // 没有日期，纯关键词搜索
-            ParsedSearchQuery(
-                keyword = trimmedQuery,
-                mode = SearchMode.KEYWORD
-            )
-        }
-        dateMatches.size == 1 -> {
-            val dateMatch = dateMatches.first()
-            val dateString = dateMatch.value
-            val remainingText = trimmedQuery.replace(dateString, "").trim()
-
-            if (remainingText.isBlank()) {
-                // 只有日期，纯日期搜索
-                ParsedSearchQuery(
-                    dateQuery = dateString,
-                    mode = SearchMode.DATE
-                )
-            } else {
-                // 有关键词和日期，组合搜索
-                ParsedSearchQuery(
-                    keyword = remainingText,
-                    dateQuery = dateString,
-                    mode = SearchMode.COMBINED
-                )
-            }
-        }
-        else -> {
-            // 多个日期匹配，使用第一个日期，剩余作为关键词
-            val firstDate = dateMatches.first().value
-            val remainingText = trimmedQuery.replace(firstDate, "").trim()
-
-            ParsedSearchQuery(
-                keyword = if (remainingText.isNotBlank()) remainingText else null,
-                dateQuery = firstDate,
-                mode = if (remainingText.isNotBlank()) SearchMode.COMBINED else SearchMode.DATE
-            )
-        }
+private fun getDaysInMonth(year: Int, month: Int): Int {
+    return when (month) {
+        1, 3, 5, 7, 8, 10, 12 -> 31
+        4, 6, 9, 11 -> 30
+        2 -> if (isLeapYear(year)) 29 else 28
+        else -> 31
     }
 }
 
-/**
- * 检测搜索模式（保持向后兼容）
- */
-private fun detectSearchMode(query: String): SearchMode {
-    return parseSearchQuery(query).mode
-}
-
-/**
- * 格式化日期用于显示
- */
-private fun formatDateForDisplay(year: Int?, month: Int?, day: Int?): String {
-    return buildString {
-        year?.let { append("${it}年") }
-        month?.let { append("${it}月") }
-        day?.let { append("${it}日") }
-    }.ifEmpty { "未选择日期" }
+private fun isLeapYear(year: Int): Boolean {
+    return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
 }
