@@ -211,6 +211,13 @@ private fun SearchResultScreen(
     selectedDay: Int?,
     hasSearched: Boolean
 ) {
+    // 添加重组监控
+    val recompositionCount = remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        recompositionCount.value++
+        Log.d("SearchResultScreen", "重组次数: ${recompositionCount.value}")
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         // 结果页面的搜索栏 - 点击快速回到搜索模式
         ResultSearchBar(
@@ -326,6 +333,7 @@ private fun SearchBar(
 
 /**
  * 结果页面的搜索栏 - 点击快速回到搜索模式
+ * 使用最简单可靠的点击处理方式
  */
 @Composable
 private fun ResultSearchBar(
@@ -335,25 +343,29 @@ private fun ResultSearchBar(
     selectedDay: Int?,
     onBackToSearch: () -> Unit
 ) {
-    // 使用 Box 包装来确保点击事件优先级
+    // 添加调试状态
+    var isPressed by remember { mutableStateOf(false) }
+
+    // 使用最简单的 Box + clickable 组合，避免复杂的组件嵌套
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
-            .clickable(
-                indication = null, // 移除水波纹效果避免冲突
-                interactionSource = remember { MutableInteractionSource() }
-            ) {
-                Log.d("ResultSearchBar", "搜索栏被点击")
+            .clip(MaterialTheme.shapes.medium)
+            .clickable {
+                Log.d("ResultSearchBar", "===== 点击事件触发 =====")
+                isPressed = true
                 onBackToSearch()
             }
+            .padding(16.dp), // 内边距放在 clickable 之后
+        contentAlignment = Alignment.CenterStart
     ) {
-        Card(
+        // 背景
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            shape = MaterialTheme.shapes.medium,
+            tonalElevation = if (isPressed) 6.dp else 4.dp,
+            color = MaterialTheme.colorScheme.surface
         ) {
             Row(
                 modifier = Modifier
@@ -377,19 +389,21 @@ private fun ResultSearchBar(
                             MaterialTheme.colorScheme.onSurface
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
-                        }
+                        },
+                        fontWeight = if (searchText.isEmpty()) FontWeight.Medium else FontWeight.Normal
                     )
 
                     if (selectedYear != null) {
                         Text(
                             text = formatDateDisplay(selectedYear, selectedMonth, selectedDay),
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
 
-                // 添加一个视觉指示器，表明这是可点击的
+                // 点击指示器
                 Icon(
                     imageVector = Icons.Default.Search,
                     contentDescription = "点击重新搜索",
@@ -397,6 +411,14 @@ private fun ResultSearchBar(
                     modifier = Modifier.size(20.dp)
                 )
             }
+        }
+    }
+
+    // 重置按压状态
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            delay(100)
+            isPressed = false
         }
     }
 }
