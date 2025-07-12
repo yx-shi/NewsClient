@@ -1,5 +1,7 @@
 package com.example.newsclient.ui.screen
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,7 +18,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -25,6 +29,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.newsclient.data.model.NewsCategory
 import com.example.newsclient.ui.viewmodel.CategoryManagementViewModel
+import kotlinx.coroutines.delay
 
 /**
  * 分类管理界面
@@ -39,6 +44,12 @@ fun CategoryManagementScreen(
     val selectedCategories by viewModel.selectedCategories.collectAsState()
     val availableCategories by viewModel.availableCategories.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+
+    // 用于追踪新添加的分类，以便显示动画
+    var newlyAddedCategory by remember { mutableStateOf<NewsCategory?>(null) }
+
+    // 用于追踪即将删除的分类，以便显示动画
+    var categoryToDelete by remember { mutableStateOf<NewsCategory?>(null) }
 
     Column(
         modifier = Modifier
@@ -132,11 +143,18 @@ fun CategoryManagementScreen(
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(selectedCategories) { category ->
-                            CategoryItem(
+                        items(
+                            items = selectedCategories,
+                            key = { it.value }
+                        ) { category ->
+                            CategoryItemWithAnimation(
                                 category = category,
-                                onDeleteClick = { viewModel.removeCategory(category) },
-                                showDeleteButton = selectedCategories.size > 1 // 至少保留一个分类
+                                onDeleteClick = {
+                                    categoryToDelete = category
+                                },
+                                showDeleteButton = selectedCategories.size > 1,
+                                isNewlyAdded = category == newlyAddedCategory,
+                                isBeingDeleted = category == categoryToDelete
                             )
                         }
                     }
@@ -153,7 +171,11 @@ fun CategoryManagementScreen(
         ) {
             // 重置按钮
             OutlinedButton(
-                onClick = { viewModel.resetToDefault() },
+                onClick = {
+                    newlyAddedCategory = null
+                    categoryToDelete = null
+                    viewModel.resetToDefault()
+                },
                 modifier = Modifier.weight(1f)
             ) {
                 Text("重置默认")
@@ -169,30 +191,100 @@ fun CategoryManagementScreen(
         }
     }
 
+    // 处理删除动画
+    LaunchedEffect(categoryToDelete) {
+        if (categoryToDelete != null) {
+            delay(300) // 等待删除动画完成
+            viewModel.removeCategory(categoryToDelete!!)
+            categoryToDelete = null
+        }
+    }
+
     // 添加分类对话框
     if (showAddDialog) {
         AddCategoryDialog(
             availableCategories = availableCategories,
             onCategorySelected = { category ->
+                newlyAddedCategory = category
                 viewModel.addCategory(category)
                 showAddDialog = false
             },
             onDismiss = { showAddDialog = false }
         )
     }
+
+    // 处理新添加分类的动画重置
+    LaunchedEffect(newlyAddedCategory) {
+        if (newlyAddedCategory != null) {
+            delay(800) // 等待添加动画完成
+            newlyAddedCategory = null
+        }
+    }
 }
 
 /**
- * 单个分类项
+ * 带动画效果的分类项
  */
 @Composable
-private fun CategoryItem(
+private fun CategoryItemWithAnimation(
     category: NewsCategory,
     onDeleteClick: () -> Unit,
-    showDeleteButton: Boolean
+    showDeleteButton: Boolean,
+    isNewlyAdded: Boolean,
+    isBeingDeleted: Boolean
 ) {
+    // 新添加动画：弹性缩放效果
+    val addScale by animateFloatAsState(
+        targetValue = if (isNewlyAdded) 1f else 1f,
+        animationSpec = if (isNewlyAdded) {
+            spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessLow
+            )
+        } else {
+            tween(0)
+        },
+        label = "addScale"
+    )
+
+    // 新添加动画：透明度渐变
+    val addAlpha by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = if (isNewlyAdded) {
+            tween(durationMillis = 500, easing = EaseInOut)
+        } else {
+            tween(0)
+        },
+        label = "addAlpha"
+    )
+
+    // 删除动画：水平滑出效果
+    val deleteOffsetX by animateFloatAsState(
+        targetValue = if (isBeingDeleted) 300f else 0f,
+        animationSpec = tween(
+            durationMillis = 300,
+            easing = EaseInOut
+        ),
+        label = "deleteOffsetX"
+    )
+
+    // 删除动画：透明度渐变
+    val deleteAlpha by animateFloatAsState(
+        targetValue = if (isBeingDeleted) 0f else 1f,
+        animationSpec = tween(
+            durationMillis = 300,
+            easing = EaseInOut
+        ),
+        label = "deleteAlpha"
+    )
+
+    // 组合所有动画效果
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .offset(x = deleteOffsetX.dp)
+            .scale(addScale)
+            .graphicsLayer(alpha = deleteAlpha * addAlpha),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -210,9 +302,25 @@ private fun CategoryItem(
             )
 
             if (showDeleteButton) {
+                // 删除按钮带轻微的抖动效果
+                var isPressed by remember { mutableStateOf(false) }
+                val buttonScale by animateFloatAsState(
+                    targetValue = if (isPressed) 0.9f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessHigh
+                    ),
+                    label = "buttonScale"
+                )
+
                 IconButton(
-                    onClick = onDeleteClick,
-                    modifier = Modifier.size(32.dp)
+                    onClick = {
+                        isPressed = true
+                        onDeleteClick()
+                    },
+                    modifier = Modifier
+                        .size(32.dp)
+                        .scale(buttonScale)
                 ) {
                     Icon(
                         Icons.Default.Delete,
@@ -220,6 +328,14 @@ private fun CategoryItem(
                         tint = Color.Red,
                         modifier = Modifier.size(20.dp)
                     )
+                }
+
+                // 重置按压状态
+                LaunchedEffect(isPressed) {
+                    if (isPressed) {
+                        delay(100)
+                        isPressed = false
+                    }
                 }
             }
         }
