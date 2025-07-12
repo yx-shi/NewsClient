@@ -476,10 +476,10 @@ class NewsViewModel(
     // === 搜索相关方法 ===
 
     /**
-     * 搜索新闻（支持关键词+时间组合搜索）
+     * 搜索新闻（支持关键词、分类和时间筛选）
      * @param keyword 搜索关键词
      * @param category 搜索范围分类，null表示在所有分类中搜索
-     * @param dateQuery 可选的时间查询，支持组合搜索
+     * @param dateQuery 可选的时间查询，支持组合搜索，可以是单个日期或日期范围
      */
     fun searchNews(keyword: String, category: NewsCategory? = null, dateQuery: String? = null) {
         Log.d("NewsViewModel", "🔍 searchNews() 被调用:")
@@ -498,19 +498,24 @@ class NewsViewModel(
 
                 val result = if (dateQuery.isNullOrBlank()) {
                     // 纯关键词搜索
+                    Log.d("NewsViewModel", "执行纯关键词搜索")
                     repository.searchNews(
                         keyword = keyword.trim(),
                         category = category
                     )
                 } else {
                     // 关键词+时间组合搜索
-                    val standardDate = parseAndFormatDate(dateQuery.trim())
+                    Log.d("NewsViewModel", "执行关键词+日期组合搜索")
+
+                    // 验证日期格式并转换
+                    val standardDate = validateAndConvertDateQuery(dateQuery.trim())
                     if (standardDate == null) {
-                        _searchResultState.value = UiState.Error("时间格式不正确，请使用 YYYY-MM-DD 或 DD/MM/YYYY 格式")
+                        Log.e("NewsViewModel", "日期格式验证失败: '$dateQuery'")
+                        _searchResultState.value = UiState.Error("日期格式不正确")
                         return@launch
                     }
 
-                    Log.d("NewsViewModel", "   解析后的标准时间: '$standardDate'")
+                    Log.d("NewsViewModel", "   日期验证通过，转换后: '$standardDate'")
 
                     // 调用Repository进行组合搜索
                     repository.searchNewsCombined(
@@ -535,10 +540,13 @@ class NewsViewModel(
                 Log.d("NewsViewModel", "✅ 搜索完成，找到 ${result.news.size} 条结果")
 
             } catch (e: IOException) {
+                Log.e("NewsViewModel", "网络连接异常", e)
                 _searchResultState.value = UiState.Error("网络连接异常: ${e.message}")
             } catch (e: HttpException) {
+                Log.e("NewsViewModel", "服务器错误", e)
                 _searchResultState.value = UiState.Error("服务器错误: ${e.message}")
             } catch (e: Exception) {
+                Log.e("NewsViewModel", "搜索失败", e)
                 _searchResultState.value = UiState.Error("搜索失败: ${e.message}")
             }
         }
@@ -641,7 +649,7 @@ class NewsViewModel(
                 _searchResultState.value = UiState.Loading
 
                 // 解析时间查询并转换为标准格式
-                val standardDate = parseAndFormatDate(dateQuery.trim())
+                val standardDate = validateAndConvertDateQuery(dateQuery.trim())
                 if (standardDate == null) {
                     _searchResultState.value = UiState.Error("时间格式不正确，请使用 YYYY-MM-DD 或 DD/MM/YYYY 格式")
                     return@launch
@@ -676,34 +684,54 @@ class NewsViewModel(
     }
 
     /**
-     * 解析并格式化时间查询
-     * 支持 YYYY-MM-DD 和 DD/MM/YYYY 两种格式
-     * @param dateQuery 用户输入的时间字符串
-     * @return 标准格式的时间字符串 (YYYY-MM-DD) 或 null（如果格式不正确）
+     * 验证并转换日期查询格式
+     * 支持多种输入格式，统一转换为标准格式
+     * @param dateQuery 输入的日期查询字符串
+     * @return 转换后的标准日期格式，失败返回null
      */
-    private fun parseAndFormatDate(dateQuery: String): String? {
+    private fun validateAndConvertDateQuery(dateQuery: String): String? {
+        Log.d("NewsViewModel", "=== validateAndConvertDateQuery ===")
+        Log.d("NewsViewModel", "输入日期查询: '$dateQuery'")
+
         return try {
             when {
-                // YYYY-MM-DD 或 YYYY/MM/DD 格式
+                // 单个日期：YYYY-MM-DD 或 YYYY/MM/DD 格式
                 dateQuery.matches(Regex("""\d{4}[-/]\d{1,2}[-/]\d{1,2}""")) -> {
                     val parts = dateQuery.split(Regex("[-/]"))
                     val year = parts[0].padStart(4, '0')
                     val month = parts[1].padStart(2, '0')
                     val day = parts[2].padStart(2, '0')
-                    "$year-$month-$day"
+                    val result = "$year-$month-$day"
+                    Log.d("NewsViewModel", "单个日期格式，转换结果: '$result'")
+                    result
                 }
-                // DD/MM/YYYY 格式
-                dateQuery.matches(Regex("""\d{1,2}/\d{1,2}/\d{4}""")) -> {
-                    val parts = dateQuery.split("/")
-                    val day = parts[0].padStart(2, '0')
-                    val month = parts[1].padStart(2, '0')
-                    val year = parts[2]
-                    "$year-$month-$day"
+                // 日期范围：YYYY-MM-DD至YYYY-MM-DD 格式（中文"至"连接）
+                dateQuery.matches(Regex("""\d{4}[-/]\d{1,2}[-/]\d{1,2}至\d{4}[-/]\d{1,2}[-/]\d{1,2}""")) -> {
+                    val parts = dateQuery.split(Regex("[-/]|至"))
+                    val startYear = parts[0].padStart(4, '0')
+                    val startMonth = parts[1].padStart(2, '0')
+                    val startDay = parts[2].padStart(2, '0')
+                    val endYear = parts[3].padStart(4, '0')
+                    val endMonth = parts[4].padStart(2, '0')
+                    val endDay = parts[5].padStart(2, '0')
+                    val result = "${startYear}-${startMonth}-${startDay}至${endYear}-${endMonth}-${endDay}"
+                    Log.d("NewsViewModel", "日期范围格式（中文至），转换结果: '$result'")
+                    result
                 }
-                else -> null
+                // 日期范围：YYYY-MM-DD,YYYY-MM-DD 格式（逗号分隔）
+                dateQuery.matches(Regex("""\d{4}-\d{2}-\d{2},\d{4}-\d{2}-\d{2}""")) -> {
+                    // 这是我们的buildDateQuery函数生成的格式，直接使用
+                    Log.d("NewsViewModel", "日期范围格式（逗号分隔），直接使用: '$dateQuery'")
+                    dateQuery
+                }
+                // 其他格式不支持
+                else -> {
+                    Log.e("NewsViewModel", "不支持的日期格式: '$dateQuery'")
+                    null
+                }
             }
         } catch (e: Exception) {
-            Log.e("NewsViewModel", "时间解析失败: ${e.message}")
+            Log.e("NewsViewModel", "日期解析失败: ${e.message}")
             null
         }
     }

@@ -49,6 +49,7 @@ interface NewsApiService {
     suspend fun searchNewsByDate(
         @Query("startDate") dateQuery: String,
         @Query("endDate") endDate: String = dateQuery, // 默认结束日期与开始日期相同
+        @Query("words") keyword: String = "", // 添加空的关键词参数
         @Query("categories") categories: String = "",
         @Query("page") page: Int = 1,
         @Query("size") size: Int = 100  // 获取更多结果

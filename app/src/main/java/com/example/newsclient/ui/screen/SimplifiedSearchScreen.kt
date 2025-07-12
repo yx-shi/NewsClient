@@ -66,26 +66,49 @@ fun SimplifiedSearchScreen(
 
     // 搜索函数
     fun performSearch() {
-        if (searchText.isBlank() && selectedYear == null) return
+        Log.d("SimplifiedSearchScreen", "=== performSearch 开始 ===")
+        Log.d("SimplifiedSearchScreen", "搜索文本是否为空: ${searchText.isBlank()}")
+        Log.d("SimplifiedSearchScreen", "选择的年份: $selectedYear")
+
+        if (searchText.isBlank() && selectedYear == null) {
+            Log.d("SimplifiedSearchScreen", "❌ 搜索条件不足：既没有关键词也没有选择日期")
+            return
+        }
 
         val dateQuery = buildDateQuery(selectedYear, selectedMonth, selectedDay)
 
-        Log.d("SimplifiedSearchScreen", "搜索 - 关键词: '$searchText', 日期: $dateQuery")
+        Log.d("SimplifiedSearchScreen", "=== 搜索执行 ===")
+        Log.d("SimplifiedSearchScreen", "关键词: '$searchText'")
+        Log.d("SimplifiedSearchScreen", "关键词是否为空: ${searchText.isBlank()}")
+        Log.d("SimplifiedSearchScreen", "原始日期: 年=${selectedYear}, 月=${selectedMonth}, 日=${selectedDay}")
+        Log.d("SimplifiedSearchScreen", "转换后日期查询: '$dateQuery'")
+        Log.d("SimplifiedSearchScreen", "日期查询是否为空: ${dateQuery == null}")
 
         when {
             searchText.isNotBlank() && dateQuery != null -> {
+                Log.d("SimplifiedSearchScreen", "✅ 执行: 关键词+日期组合搜索")
                 viewModel.searchNews(searchText.trim(), currentCategory, dateQuery)
             }
-            searchText.isNotBlank() -> {
+            searchText.isNotBlank() && dateQuery == null -> {
+                Log.d("SimplifiedSearchScreen", "✅ 执行: 纯关键词搜索")
                 viewModel.searchNews(searchText.trim(), currentCategory)
             }
-            dateQuery != null -> {
+            searchText.isBlank() && dateQuery != null -> {
+                Log.d("SimplifiedSearchScreen", "✅ 执行: 纯日期搜索")
+                Log.d("SimplifiedSearchScreen", ">>> 重要：这里应该调用纯日期搜索")
                 viewModel.searchNewsByDate(dateQuery, currentCategory)
+            }
+            else -> {
+                Log.d("SimplifiedSearchScreen", "❌ 未知搜索条件组合")
+                Log.d("SimplifiedSearchScreen", "   searchText.isNotBlank()=${searchText.isNotBlank()}")
+                Log.d("SimplifiedSearchScreen", "   dateQuery != null=${dateQuery != null}")
+                return
             }
         }
 
         hasSearched = true
         isInSearchMode = false // 切换到结果显示模式
+        Log.d("SimplifiedSearchScreen", "=== performSearch 完成 ===")
     }
 
     // 根据当前状态显示不同的界面
@@ -103,6 +126,10 @@ fun SimplifiedSearchScreen(
                 selectedMonth = month
                 selectedDay = day
                 showDatePicker = false
+
+                // 选择完日期后自动回到搜索输入状态，而不是执行搜索
+                // 这样用户可以继续输入关键词进行组合搜索
+                Log.d("SimplifiedSearchScreen", "日期已选择: ${year}年${month ?: ""}月${day ?: ""}日")
             },
             onClearDate = {
                 selectedYear = null
@@ -511,9 +538,17 @@ private fun WelcomeContent() {
             Text(text = "🔍", fontSize = 48.sp)
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "输入关键词或选择日期进行搜索",
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "智能搜索",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "• 输入关键词搜索新闻内容\n• 点击日历图标选择时间范围\n• 支持关键词+时间组合搜索",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 20.sp
             )
         }
     }
@@ -717,24 +752,42 @@ private fun NewsCard(
 
 // 辅助函数
 private fun buildDateQuery(year: Int?, month: Int?, day: Int?): String? {
+    Log.d("buildDateQuery", "=== 开始日期转换 ===")
+    Log.d("buildDateQuery", "输入参数: 年=$year, 月=$month, 日=$day")
+
     return if (year != null) {
-        when {
-            day != null -> {
+        val result = when {
+            day != null && month != null -> {
                 // 精确到天：2025-01-15
-                String.format("%04d-%02d-%02d", year, month ?: 1, day)
+                val dateStr = String.format("%04d-%02d-%02d", year, month, day)
+                Log.d("buildDateQuery", "精确到天模式: $dateStr")
+                dateStr
             }
             month != null -> {
                 // 精确到月：2025-01-01,2025-01-31
                 val startDate = String.format("%04d-%02d-01", year, month)
-                val endDate = String.format("%04d-%02d-%02d", year, month, getDaysInMonth(year, month))
-                "$startDate,$endDate"
+                val daysInMonth = getDaysInMonth(year, month)
+                val endDate = String.format("%04d-%02d-%02d", year, month, daysInMonth)
+                val rangeStr = "$startDate,$endDate"
+                Log.d("buildDateQuery", "精确到月模式: $rangeStr (月份有${daysInMonth}天)")
+                Log.d("buildDateQuery", ">>> 重要：这是传递给API的日期范围参数")
+                rangeStr
             }
             else -> {
                 // 精确到年：2025-01-01,2025-12-31
-                "$year-01-01,$year-12-31"
+                val rangeStr = "$year-01-01,$year-12-31"
+                Log.d("buildDateQuery", "精确到年模式: $rangeStr")
+                Log.d("buildDateQuery", ">>> 重要：这是传递给API的日期范围参数")
+                rangeStr
             }
         }
-    } else null
+        Log.d("buildDateQuery", "最终转换结果: '$result'")
+        Log.d("buildDateQuery", "=== 日期转换完成 ===")
+        result
+    } else {
+        Log.d("buildDateQuery", "年份为空，返回null")
+        null
+    }
 }
 
 private fun formatDateDisplay(year: Int?, month: Int?, day: Int?): String {

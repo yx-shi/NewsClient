@@ -17,7 +17,6 @@ import androidx.navigation.NavType
 import com.example.newsclient.data.model.News
 import com.example.newsclient.data.model.NewsCategory
 import com.example.newsclient.ui.screen.NewsListScreen
-import com.example.newsclient.ui.screen.SearchScreen
 import com.example.newsclient.ui.screen.SimplifiedSearchScreen
 import com.example.newsclient.ui.screen.NewsDetailScreen
 import com.example.newsclient.ui.screen.TestScreen

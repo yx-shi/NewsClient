@@ -342,9 +342,17 @@ class NetworkNewsRepository(
             Log.d("NetworkNewsRepository", "🕒 按时间搜索新闻，日期：$dateQuery")
             Log.d("NetworkNewsRepository", "   分类: ${category?.value}")
 
+            // 解析日期查询参数
+            val (startDate, endDate) = parseDateQuery(dateQuery)
+            Log.d("NetworkNewsRepository", "=== 日期解析结果 ===")
+            Log.d("NetworkNewsRepository", "   原始日期查询: '$dateQuery'")
+            Log.d("NetworkNewsRepository", "   解析后startDate: '$startDate'")
+            Log.d("NetworkNewsRepository", "   解析后endDate: '$endDate'")
+
             // 调用网络API进行新闻搜索
             val response = newsApiService.searchNewsByDate(
-                dateQuery = dateQuery,
+                dateQuery = startDate,
+                endDate = endDate,
                 categories = category?.value ?: ""
             )
 
@@ -387,15 +395,23 @@ class NetworkNewsRepository(
             Log.d("NetworkNewsRepository", "🔍 开始组合搜索新闻，关键词：$keyword，日期：$dateQuery")
             Log.d("NetworkNewsRepository", "   分类: ${category?.value}")
 
+            // 解析日期查询参数
+            val (startDate, endDate) = parseDateQuery(dateQuery)
+            Log.d("NetworkNewsRepository", "=== 组合搜索日期解析结果 ===")
+            Log.d("NetworkNewsRepository", "   原始日期查询: '$dateQuery'")
+            Log.d("NetworkNewsRepository", "   解析后startDate: '$startDate'")
+            Log.d("NetworkNewsRepository", "   解析后endDate: '$endDate'")
+
             // 调用网络API进行新闻搜索
             val response = newsApiService.searchNewsCombined(
                 keyword = keyword,
-                dateQuery = dateQuery,
+                dateQuery = startDate,
+                endDate = endDate,
                 categories = category?.value ?: ""
             )
 
             // 打印搜索结果信息
-            Log.d("NetworkNewsRepository", "📊 搜索结果：")
+            Log.d("NetworkNewsRepository", "📊 组合搜索结果：")
             Log.d("NetworkNewsRepository", "   total: ${response.total}")
             Log.d("NetworkNewsRepository", "   data.size: ${response.data.size}")
 
@@ -403,7 +419,7 @@ class NetworkNewsRepository(
             PaginatedNewsResult(response.data, response.total, response.total > response.data.size)
         } catch (e: retrofit2.HttpException) {
             // HTTP错误的详细处理
-            Log.e("NetworkNewsRepository", "❌ HTTP错误: ${e.code()} - ${e.message()}")
+            Log.e("NetworkNewsRepository", "❌ 组合搜索HTTP错误: ${e.code()} - ${e.message()}")
             try {
                 val errorBody = e.response()?.errorBody()?.string()
                 Log.e("NetworkNewsRepository", "错误响应内容: $errorBody")
@@ -417,6 +433,39 @@ class NetworkNewsRepository(
             // 其他异常返回空的分页结果
             Log.e("NetworkNewsRepository", "💥 组合搜索新闻失败", e)
             PaginatedNewsResult(emptyList(), 0, false)
+        }
+    }
+
+    /**
+     * 解析日期查询参数
+     * 将各种日期格式转换为API需要的startDate和endDate
+     */
+    private fun parseDateQuery(dateQuery: String): Pair<String, String> {
+        Log.d("NetworkNewsRepository", "=== parseDateQuery ===")
+        Log.d("NetworkNewsRepository", "输入: '$dateQuery'")
+
+        return when {
+            // 处理逗号分隔的日期范围：2025-02-01,2025-02-28
+            dateQuery.contains(",") -> {
+                val dates = dateQuery.split(",")
+                val startDate = dates[0].trim()
+                val endDate = dates[1]. trim()
+                Log.d("NetworkNewsRepository", "逗号分隔格式：startDate='$startDate', endDate='$endDate'")
+                Pair(startDate, endDate)
+            }
+            // 处理中文"至"分隔的日期范围：2025-02-01至2025-02-28
+            dateQuery.contains("至") -> {
+                val dates = dateQuery.split("至")
+                val startDate = dates[0].trim()
+                val endDate = dates[1]. trim()
+                Log.d("NetworkNewsRepository", "中文至分隔格式：startDate='$startDate', endDate='$endDate'")
+                Pair(startDate, endDate)
+            }
+            // 单个日期：2025-02-01
+            else -> {
+                Log.d("NetworkNewsRepository", "单个日期格式：startDate='$dateQuery', endDate='$dateQuery'")
+                Pair(dateQuery, dateQuery)
+            }
         }
     }
 }
