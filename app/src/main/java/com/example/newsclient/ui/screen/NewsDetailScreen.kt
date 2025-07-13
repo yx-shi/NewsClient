@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.newsclient.data.model.News
@@ -39,10 +40,14 @@ import com.example.newsclient.ui.component.VideoPlayer
 @Composable
 fun NewsDetailScreen(
     news: News,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    viewModel: com.example.newsclient.ui.viewmodel.NewsDetailViewModel = viewModel(factory = com.example.newsclient.ui.viewmodel.NewsDetailViewModel.Factory)
 ) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current
+
+    // 监听摘要生成状态
+    val summaryState by viewModel.summaryState.collectAsState()
 
     // 在进入详情页时标记为已读
     LaunchedEffect(news.id) {
@@ -162,6 +167,19 @@ fun NewsDetailScreen(
                 }
             }
 
+            // AI摘要功能
+            AISummarySection(
+                news = news,
+                summaryState = summaryState,
+                onGenerateSummary = { apiKey ->
+                    viewModel.generateSummary(news, apiKey)
+                },
+                onResetSummary = {
+                    viewModel.resetSummaryState()
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
             // 关键词标签
             if (news.keywords.isNotEmpty()) {
                 KeywordTagsSection(
@@ -228,6 +246,203 @@ private fun NewsImage(imageUrl: String, modifier: Modifier = Modifier) {
                 .background(Color.Gray.copy(alpha = 0.1f)),
             error = painterResource(id = android.R.drawable.ic_menu_gallery)
         )
+    }
+}
+
+/**
+ * AI摘要功能组件
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AISummarySection(
+    news: News,
+    summaryState: com.example.newsclient.ui.viewmodel.SummaryState,
+    onGenerateSummary: (apiKey: String) -> Unit,
+    onResetSummary: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // GLM API密钥 - 已配置真实密钥
+    val apiKey = "aaaffc29498342d78024bc5afcfd6183.mwC3ibdlWpMftsPe"
+
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🤖 AI智能摘要",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+
+                // 状态指示器
+                when (summaryState) {
+                    is com.example.newsclient.ui.viewmodel.SummaryState.Loading -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                    is com.example.newsclient.ui.viewmodel.SummaryState.Success -> {
+                        Text(
+                            text = "✅",
+                            fontSize = 16.sp
+                        )
+                    }
+                    is com.example.newsclient.ui.viewmodel.SummaryState.Error -> {
+                        Text(
+                            text = "❌",
+                            fontSize = 16.sp
+                        )
+                    }
+                    else -> {}
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 摘要内容区域
+            when (summaryState) {
+                is com.example.newsclient.ui.viewmodel.SummaryState.Idle -> {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "🌟 使用AI大模型为您生成新闻摘要\n\n点击下方按钮开始生成精准摘要",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+
+                is com.example.newsclient.ui.viewmodel.SummaryState.Loading -> {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "⚡ 正在生成摘要...",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "AI正在分析新闻内容，请稍候",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+
+                is com.example.newsclient.ui.viewmodel.SummaryState.Success -> {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = summaryState.summary,
+                            fontSize = 15.sp,
+                            color = Color.Black,
+                            lineHeight = 22.sp,
+                            textAlign = TextAlign.Justify,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+
+                is com.example.newsclient.ui.viewmodel.SummaryState.Error -> {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = "❌ 摘要生成失败",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = summaryState.message,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 操作按钮
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // 生成摘要按钮
+                Button(
+                    onClick = {
+                        onGenerateSummary(apiKey)
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = summaryState !is com.example.newsclient.ui.viewmodel.SummaryState.Loading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = when (summaryState) {
+                            is com.example.newsclient.ui.viewmodel.SummaryState.Loading -> "生成中..."
+                            is com.example.newsclient.ui.viewmodel.SummaryState.Success -> "重新生成"
+                            else -> "生成摘要"
+                        }
+                    )
+                }
+
+                // 重置按钮
+                if (summaryState !is com.example.newsclient.ui.viewmodel.SummaryState.Idle) {
+                    OutlinedButton(
+                        onClick = onResetSummary,
+                        modifier = Modifier.weight(1f),
+                        enabled = summaryState !is com.example.newsclient.ui.viewmodel.SummaryState.Loading,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(text = "重置")
+                    }
+                }
+            }
+        }
     }
 }
 

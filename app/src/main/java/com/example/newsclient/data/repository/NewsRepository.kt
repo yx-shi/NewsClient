@@ -118,6 +118,14 @@ interface NewsRepository {
         dateQuery: String,
         category: NewsCategory? = null
     ): PaginatedNewsResult
+
+    /**
+     * 生成新闻摘要
+     * @param news 要生成摘要的新闻
+     * @param apiKey GLM API密钥
+     * @return 生成的摘要文本
+     */
+    suspend fun generateNewsSummary(news: News, apiKey: String): String
 }
 
 /**
@@ -126,7 +134,8 @@ interface NewsRepository {
  */
 class NetworkNewsRepository(
     private val newsApiService: NewsApiService,  // 网络API服务
-    private val newsLocalDataSource: NewsLocalDataSource       // 本地数据库 - 更新引用
+    private val newsLocalDataSource: NewsLocalDataSource,       // 本地数据库 - 更新引用
+    private val glmApiService: com.example.newsclient.data.remote.GLMApiService  // GLM API服务
 ): NewsRepository {
 
     /**
@@ -466,6 +475,51 @@ class NetworkNewsRepository(
                 Log.d("NetworkNewsRepository", "单个日期格式：startDate='$dateQuery', endDate='$dateQuery'")
                 Pair(dateQuery, dateQuery)
             }
+        }
+    }
+
+    /**
+     * 生成新闻摘要
+     */
+    override suspend fun generateNewsSummary(news: News, apiKey: String): String {
+        return try {
+            Log.d("NetworkNewsRepository", "🤖 开始生成新闻摘要")
+            Log.d("NetworkNewsRepository", "   新闻ID: ${news.id}")
+            Log.d("NetworkNewsRepository", "   新闻标题: ${news.title}")
+            Log.d("NetworkNewsRepository", "   内容长度: ${news.content.length}")
+
+            // 创建GLM请求
+            val request = com.example.newsclient.data.remote.GLMApiService.createSummaryRequest(
+                newsTitle = news.title,
+                newsContent = news.content
+            )
+
+            // 调用GLM API
+            val response = glmApiService.generateSummary(
+                authorization = com.example.newsclient.data.remote.GLMApiService.createAuthHeader(apiKey),
+                request = request
+            )
+
+            // 提取摘要文本
+            val summary = response.choices.firstOrNull()?.message?.content ?: "生成摘要失败"
+
+            Log.d("NetworkNewsRepository", "📝 摘要生成成功")
+            Log.d("NetworkNewsRepository", "   摘要长度: ${summary.length}")
+            Log.d("NetworkNewsRepository", "   使用tokens: ${response.usage.totalTokens}")
+
+            summary
+        } catch (e: retrofit2.HttpException) {
+            Log.e("NetworkNewsRepository", "❌ GLM API HTTP错误: ${e.code()} - ${e.message()}")
+            try {
+                val errorBody = e.response()?.errorBody()?.string()
+                Log.e("NetworkNewsRepository", "GLM错误响应: $errorBody")
+            } catch (ex: Exception) {
+                Log.e("NetworkNewsRepository", "无法读取GLM错误响应", ex)
+            }
+            throw Exception("生成摘要失败：HTTP ${e.code()}")
+        } catch (e: Exception) {
+            Log.e("NetworkNewsRepository", "💥 生成新闻摘要失败", e)
+            throw Exception("生成摘要失败：${e.message}")
         }
     }
 }

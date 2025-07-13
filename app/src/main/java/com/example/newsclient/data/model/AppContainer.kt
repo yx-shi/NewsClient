@@ -110,7 +110,31 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 //         当网络问题解决后，取消注释下面这行，注释上面那行
          NetworkNewsRepository(
              newsApiService = newsApiService,
-             newsLocalDataSource = newsLocalDataSource
+             newsLocalDataSource = newsLocalDataSource,
+             glmApiService = glmApiService  // 添加GLM API服务
          )
+    }
+
+    /**
+     * GLM API的基础URL
+     */
+    private val glm_base_url = "https://open.bigmodel.cn/api/paas/v4/"
+
+    /**
+     * GLM Retrofit实例，用于调用智谱AI大模型
+     */
+    private val glmRetrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(glm_base_url)
+            .client(okHttpClient)  // 复用现有的OkHttp客户端
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    /**
+     * GLM API服务
+     */
+    private val glmApiService: com.example.newsclient.data.remote.GLMApiService by lazy {
+        glmRetrofit.create(com.example.newsclient.data.remote.GLMApiService::class.java)
     }
 }
