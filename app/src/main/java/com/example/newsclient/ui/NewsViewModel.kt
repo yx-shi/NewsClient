@@ -93,12 +93,15 @@ class NewsViewModel(
     /**
      * 每页显示的新闻数量
      */
-    private val pageSize = 20
+    private val pageSize = 15
 
     init {
         // 初始化用户分类和已读状态
         loadUserCategories()
         loadReadNewsIds()
+
+        // 添加ViewModel初始化日志
+        Log.d("NewsViewModel", "🎯 NewsViewModel 初始化完成")
     }
 
     // === 初始化相关方法 ===
@@ -109,10 +112,19 @@ class NewsViewModel(
     private fun loadUserCategories() {
         viewModelScope.launch {
             userPreferences.getUserCategories().collect { categories ->
+                Log.d("NewsViewModel", "🏷️ 用户分类加载完成: ${categories.map { it.value }}")
                 _userCategories.value = categories
-                // 如果当前分类为空，设置为第一个分类
-                if (_currentCategory.value == null && categories.isNotEmpty()) {
-                    _currentCategory.value = categories.first()
+
+                // 如果当前分类为空，设置默认分类
+                if (_currentCategory.value == null) {
+                    Log.d("NewsViewModel", "🔄 当前分类为空，设置默认分类")
+                    if (categories.isNotEmpty()) {
+                        Log.d("NewsViewModel", "   设置为第一个分类: ${categories.first().value}")
+                        _currentCategory.value = categories.first()
+                    } else {
+                        Log.d("NewsViewModel", "   设置为全部分类")
+                        _currentCategory.value = null
+                    }
                     loadNews(refresh = true)
                 }
             }
@@ -129,6 +141,23 @@ class NewsViewModel(
             // 更新新闻列表状态中的已读ID
             _newsListState.value = _newsListState.value.copy(readNewsIds = readIds)
         }
+    }
+
+    /**
+     * 强制刷新当前分类的新闻
+     * 用于解决分类切换不响应的问题
+     */
+    fun forceRefreshCurrentCategory() {
+        Log.d("NewsViewModel", "🔄 强制刷新当前分类")
+        Log.d("NewsViewModel", "   当前分类: ${_currentCategory.value?.value ?: "全部"}")
+
+        // 清空当前列表并重新加载
+        _newsListState.value = _newsListState.value.copy(
+            news = emptyList(),
+            isRefreshing = true
+        )
+
+        loadNews(refresh = true)
     }
 
     // === 新闻列表相关方法 ===
@@ -207,9 +236,24 @@ class NewsViewModel(
      * 切换新闻分类
      */
     fun selectCategory(category: NewsCategory?) {
+        Log.d("NewsViewModel", "🔄 selectCategory 被调用")
+        Log.d("NewsViewModel", "   当前分类: ${_currentCategory.value?.value ?: "全部"}")
+        Log.d("NewsViewModel", "   目标分类: ${category?.value ?: "全部"}")
+
         if (_currentCategory.value != category) {
+            Log.d("NewsViewModel", "✅ 分类发生变化，开始切换")
             _currentCategory.value = category
+
+            // 立即更新新闻列表状态，清空当前列表
+            _newsListState.value = _newsListState.value.copy(
+                news = emptyList(),
+                isRefreshing = true
+            )
+
+            Log.d("NewsViewModel", "🔄 开始加载新分类的新闻")
             loadNews(refresh = true)
+        } else {
+            Log.d("NewsViewModel", "⏭️ 分类无变化，跳过切换")
         }
     }
 

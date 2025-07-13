@@ -8,24 +8,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.example.newsclient.data.local.NewsFavorite
 import com.example.newsclient.data.model.News
 import com.example.newsclient.ui.UiState
 import com.example.newsclient.ui.viewmodel.FavoriteViewModel
@@ -111,8 +105,8 @@ fun FavoriteScreen(
                         Icon(
                             imageVector = Icons.Default.Favorite,
                             contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.size(64.dp)
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
@@ -122,7 +116,7 @@ fun FavoriteScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "去收藏感兴趣的新闻吧",
+                            text = "收藏你喜欢的新闻吧",
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                         )
@@ -168,9 +162,10 @@ fun FavoriteScreen(
                 ) {
                     items(currentState.data) { favoriteItem ->
                         FavoriteNewsItem(
-                            favoriteItem = favoriteItem,
-                            onNewsClick = { onNewsClick(favoriteItem.news) },
-                            onDeleteClick = { viewModel.deleteFavoriteItem(favoriteItem.news.id) }
+                            news = favoriteItem.news,
+                            favoriteTime = favoriteItem.favoriteTime,
+                            onClick = { onNewsClick(favoriteItem.news) },
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
@@ -216,100 +211,70 @@ fun FavoriteScreen(
 }
 
 /**
- * 收藏新闻项
+ * 收藏新闻项组件
  */
 @Composable
 private fun FavoriteNewsItem(
-    favoriteItem: NewsFavorite,
-    onNewsClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    news: News,
+    favoriteTime: Long,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+    val formattedTime = dateFormat.format(Date(favoriteTime))
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onNewsClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        modifier = modifier
+            .clickable { onClick() }
+            .padding(horizontal = 4.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Column(
+            modifier = Modifier.padding(16.dp)
         ) {
-            // 新闻图片
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(favoriteItem.news.imageUrl)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = "新闻图片",
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
+            // 新闻标题
+            Text(
+                text = news.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
 
-            // 新闻信息
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 新闻摘要
+            Text(
+                text = news.content,
+                fontSize = 14.sp,
+                color = Color.Gray,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 新闻元信息
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = favoriteItem.news.title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Text(
-                    text = favoriteItem.news.category,
+                    text = news.publisher,
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .background(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(4.dp)
-                        )
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                    color = Color.Gray
                 )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "收藏时间: ${formatFavoriteTime(favoriteItem.favoriteTime)}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-
-                    IconButton(
-                        onClick = onDeleteClick,
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "删除",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
+                Text(
+                    text = "收藏时间: $formattedTime",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
             }
         }
     }
-}
-
-/**
- * 格式化收藏时间
- */
-private fun formatFavoriteTime(timestamp: Long): String {
-    val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-    return dateFormat.format(Date(timestamp))
 }

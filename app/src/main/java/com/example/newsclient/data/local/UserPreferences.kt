@@ -60,6 +60,9 @@ class UserPreferences(context: Context) {
         _userCategories.value = getSelectedCategories()
         _historyNews.value = getHistoryNews()
         _favoriteNews.value = getFavoriteNews()
+
+        // 添加调试日志以确认初始化状态
+        android.util.Log.d("UserPreferences", "初始化完成 - 收藏数量: ${_favoriteNews.value.size}")
     }
 
     /**
@@ -230,7 +233,8 @@ class UserPreferences(context: Context) {
         return if (savedJson != null) {
             try {
                 val type = object : TypeToken<List<NewsHistory>>() {}.type
-                gson.fromJson(savedJson, type) ?: emptyList()
+                val parsedResult: List<NewsHistory>? = gson.fromJson(savedJson, type)
+                parsedResult ?: emptyList()
             } catch (e: Exception) {
                 emptyList()
             }
@@ -296,8 +300,13 @@ class UserPreferences(context: Context) {
             .putString(KEY_FAVORITE_NEWS, json)
             .apply()
 
-        // 更新StateFlow
+        // 立即更新StateFlow - 这是关键修复
         _favoriteNews.value = currentFavorites
+
+        // 添加调试日志
+        android.util.Log.d("UserPreferences", "添加收藏: ${news.title}")
+        android.util.Log.d("UserPreferences", "当前收藏数量: ${currentFavorites.size}")
+        android.util.Log.d("UserPreferences", "StateFlow已更新到: ${_favoriteNews.value.size} 条")
     }
 
     /**
@@ -305,16 +314,29 @@ class UserPreferences(context: Context) {
      */
     fun getFavoriteNews(): List<NewsFavorite> {
         val savedJson = sharedPreferences.getString(KEY_FAVORITE_NEWS, null)
-        return if (savedJson != null) {
+        val result = if (savedJson != null) {
             try {
                 val type = object : TypeToken<List<NewsFavorite>>() {}.type
-                gson.fromJson(savedJson, type) ?: emptyList()
+                val parsedResult: List<NewsFavorite>? = gson.fromJson(savedJson, type)
+                parsedResult ?: emptyList()
             } catch (e: Exception) {
+                android.util.Log.e("UserPreferences", "解析收藏数据失败", e)
                 emptyList()
             }
         } else {
             emptyList()
         }
+
+        // 添加调试日志
+        android.util.Log.d("UserPreferences", "获取收藏数据: ${result.size} 条")
+
+        // 关键修复：确保StateFlow与实际数据同步
+        if (_favoriteNews.value.size != result.size) {
+            android.util.Log.d("UserPreferences", "检测到StateFlow不同步，从 ${_favoriteNews.value.size} 更新到 ${result.size}")
+            _favoriteNews.value = result
+        }
+
+        return result
     }
 
     /**
@@ -331,6 +353,9 @@ class UserPreferences(context: Context) {
             .remove(KEY_FAVORITE_NEWS_IDS)
             .apply()
         _favoriteNews.value = emptyList()
+
+        // 添加调试日志
+        android.util.Log.d("UserPreferences", "清空收藏")
     }
 
     /**
@@ -346,6 +371,9 @@ class UserPreferences(context: Context) {
             .apply()
 
         _favoriteNews.value = currentFavorites
+
+        // 添加调试日志
+        android.util.Log.d("UserPreferences", "删除收藏: $newsId, 剩余收藏数量: ${currentFavorites.size}")
     }
 
     /**
@@ -362,7 +390,7 @@ class UserPreferences(context: Context) {
     }
 
     /**
-     * 移除已读新闻ID
+     * 移除已���新闻ID
      */
     private fun removeReadNewsId(newsId: String) {
         val readIds = getReadNewsIds().toMutableSet()
@@ -397,5 +425,15 @@ class UserPreferences(context: Context) {
      */
     fun isNewsRead(newsId: String): Boolean {
         return getReadNewsIds().contains(newsId)
+    }
+
+    /**
+     * 强制刷新收藏数据的StateFlow
+     * 用于确保多个实例之间的数据同步
+     */
+    fun refreshFavoriteFlow() {
+        val currentData = getFavoriteNews()
+        _favoriteNews.value = currentData
+        android.util.Log.d("UserPreferences", "强制刷新收藏Flow: ${currentData.size} 条")
     }
 }

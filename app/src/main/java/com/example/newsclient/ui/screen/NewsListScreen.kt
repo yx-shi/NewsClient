@@ -60,6 +60,27 @@ fun NewsListScreen(
         Log.d("NewsListScreen", "   onSearchClick 函数: ${onSearchClick}")
     }
 
+    // 监听分类和新闻列表状态的变化
+    LaunchedEffect(currentCategory, newsListState.news.size) {
+        Log.d("NewsListScreen", "📊 状态变化监听")
+        Log.d("NewsListScreen", "   当前分类: ${currentCategory?.value ?: "全部"}")
+        Log.d("NewsListScreen", "   新闻列表大小: ${newsListState.news.size}")
+        Log.d("NewsListScreen", "   是否正在刷新: ${newsListState.isRefreshing}")
+    }
+
+    // 添加一个检测机制，如果分类切换后5秒内新闻列表还是空的，则强制刷新
+    LaunchedEffect(currentCategory) {
+        val category = currentCategory
+        if (category != null) {
+            Log.d("NewsListScreen", "⏰ 开始5秒超时检测：${category.value}")
+            kotlinx.coroutines.delay(5000) // 等待5秒
+            if (newsListState.news.isEmpty() && !newsListState.isRefreshing) {
+                Log.w("NewsListScreen", "⚠️ 检测到分类切换超时，强制刷新")
+                viewModel.forceRefreshCurrentCategory()
+            }
+        }
+    }
+
     // 分类列表（包含"全部"选项 + 用户自定义分类）
     val categories = remember(userCategories) {
         listOf(null) + userCategories // null 代表"全部"，然后是用户选择的分类
@@ -93,7 +114,11 @@ fun NewsListScreen(
 
         // 新闻列表
         NewsListContent(
-            newsListState = UiState.Success(newsListState),
+            newsListState = when {
+                newsListState.isRefreshing -> UiState.Loading
+                newsListState.news.isEmpty() && !newsListState.isRefreshing && !newsListState.isLoadingMore -> UiState.Empty
+                else -> UiState.Success(newsListState)
+            },
             onNewsClick = { news ->
                 // 点击新闻时标记为已读
                 viewModel.markNewsAsRead(news)
@@ -193,9 +218,18 @@ private fun CategoryChip(
 ) {
     val categoryName = category?.value ?: "全部"
 
+    // 添加调试日志
+    LaunchedEffect(isSelected) {
+        Log.d("CategoryChip", "🏷️ 分类标签状态更新: $categoryName, 选中: $isSelected")
+    }
+
     Card(
         modifier = Modifier
-            .clickable { onClick() }
+            .clickable {
+                Log.d("CategoryChip", "👆 分类标签被点击: $categoryName")
+                onClick()
+                Log.d("CategoryChip", "✅ 分类标签点击回调执行完成: $categoryName")
+            }
             .clip(RoundedCornerShape(16.dp)),
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected)

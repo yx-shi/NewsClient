@@ -62,7 +62,20 @@ fun SimplifiedSearchScreen(
     var isInSearchMode by remember { mutableStateOf(true) } // 核心状态：是否在搜索模式
     var hasSearched by remember { mutableStateOf(false) } // 记录是否已经搜索过
 
-    val searchResultState by viewModel.searchNews(searchText.ifBlank { "" }, currentCategory).collectAsState()
+    // 使用remember来创建一个稳定的StateFlow引用，避免重复请求
+    var currentSearchKeyword by remember { mutableStateOf("") }
+    var currentSearchCategory by remember { mutableStateOf<NewsCategory?>(null) }
+
+    // 只有在真正执行搜索时才创建StateFlow
+    val searchResultState = remember(currentSearchKeyword, currentSearchCategory) {
+        if (currentSearchKeyword.isNotBlank()) {
+            Log.d("SimplifiedSearchScreen", "🔍 创建搜索StateFlow: keyword='$currentSearchKeyword', category=${currentSearchCategory?.value}")
+            viewModel.searchNews(currentSearchKeyword, currentSearchCategory)
+        } else {
+            Log.d("SimplifiedSearchScreen", "⏭️ 跳过搜索StateFlow创建，关键词为空")
+            kotlinx.coroutines.flow.MutableStateFlow(UiState.Empty)
+        }
+    }.collectAsState()
 
     // 搜索函数
     fun performSearch() {
@@ -87,7 +100,9 @@ fun SimplifiedSearchScreen(
         when {
             searchText.isNotBlank() -> {
                 Log.d("SimplifiedSearchScreen", "✅ 执行: 关键词搜索")
-                // 搜索结果通过 searchResultState 自动更新
+                // 更新搜索参数，触发搜索StateFlow的重新创建
+                currentSearchKeyword = searchText.trim()
+                currentSearchCategory = currentCategory
             }
             else -> {
                 Log.d("SimplifiedSearchScreen", "❌ 未知搜索条件组合")
@@ -133,7 +148,7 @@ fun SimplifiedSearchScreen(
         )
     } else {
         SearchResultScreen(
-            searchResultState = searchResultState,
+            searchResultState = searchResultState.value,
             onNewsClick = onNewsClick,
             onBackToSearch = {
                 isInSearchMode = true

@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.newsclient.NewsApplication
 import com.example.newsclient.data.local.UserPreferences
 import com.example.newsclient.ui.UiState
 import com.example.newsclient.ui.viewmodel.HistoryViewModel
@@ -38,19 +39,57 @@ fun ProfileScreen(
     onSettingsClick: () -> Unit = {},
     historyViewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory)
 ) {
+    // 添加调试日志
+    android.util.Log.d("ProfileScreen", "ProfileScreen 被创建")
+
     val context = LocalContext.current
-    val userPreferences = remember { UserPreferences(context) }
+    // 使用应用级别的UserPreferences实例，确保数据一致性
+    val application = context.applicationContext as NewsApplication
+    val userPreferences = application.userPreferences
     val historyState by historyViewModel.uiState.collectAsState()
 
-    // 获取收藏数量
-    val favoriteCount = remember(userPreferences) {
-        userPreferences.getFavoriteNews().size
+    // 获取收藏数量 - 使用Flow来实时监听，并添加强制刷新机制
+    val favoriteNews by userPreferences.getFavoriteNewsFlow().collectAsState(initial = emptyList())
+    val favoriteCount = favoriteNews.size
+
+    // 添加调试日志
+    android.util.Log.d("ProfileScreen", "当前收藏数量: $favoriteCount")
+
+    // 添加更详细的调试信息
+    LaunchedEffect(favoriteNews) {
+        android.util.Log.d("ProfileScreen", "收藏数据更新: ${favoriteNews.size} 条")
+        favoriteNews.forEach { favorite ->
+            android.util.Log.d("ProfileScreen", "收藏项: ${favorite.news.title}")
+        }
+    }
+
+    // 页面显示时强制刷新一次收藏数据
+    LaunchedEffect(Unit) {
+        userPreferences.refreshFavoriteFlow()
+        android.util.Log.d("ProfileScreen", "ProfileScreen初始化，强制刷新收藏数据")
+    }
+
+    // 使用DisposableEffect来监听页面的生命周期
+    DisposableEffect(Unit) {
+        android.util.Log.d("ProfileScreen", "ProfileScreen进入前台")
+        // 页面进入前台时刷新数据
+        userPreferences.refreshFavoriteFlow()
+
+        onDispose {
+            android.util.Log.d("ProfileScreen", "ProfileScreen离开前台")
+        }
     }
 
     // 计算历史记录数量
     val historyCount = when (val currentState = historyState) {
-        is UiState.Success -> currentState.data.size
-        else -> 0
+        is UiState.Success -> {
+            android.util.Log.d("ProfileScreen", "历史记录数量: ${currentState.data.size}")
+            currentState.data.size
+        }
+        else -> {
+            android.util.Log.d("ProfileScreen", "历史记录状态: $currentState")
+            0
+        }
     }
 
     Column(

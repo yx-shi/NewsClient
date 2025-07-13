@@ -8,23 +8,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.example.newsclient.data.local.NewsHistory
 import com.example.newsclient.data.model.News
 import com.example.newsclient.ui.UiState
 import com.example.newsclient.ui.viewmodel.HistoryViewModel
@@ -160,9 +154,10 @@ fun HistoryScreen(
                 ) {
                     items(currentState.data) { historyItem ->
                         HistoryNewsItem(
-                            historyItem = historyItem,
-                            onNewsClick = { onNewsClick(historyItem.news) },
-                            onDeleteClick = { viewModel.deleteHistoryItem(historyItem.news.id) }
+                            news = historyItem.news,
+                            viewTime = historyItem.readTime,
+                            onClick = { onNewsClick(historyItem.news) },
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
@@ -208,100 +203,70 @@ fun HistoryScreen(
 }
 
 /**
- * 历史记录新闻项
+ * 历史记录新闻项组件
  */
 @Composable
 private fun HistoryNewsItem(
-    historyItem: NewsHistory,
-    onNewsClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    news: News,
+    viewTime: Long,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+    val formattedTime = dateFormat.format(Date(viewTime))
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onNewsClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        modifier = modifier
+            .clickable { onClick() }
+            .padding(horizontal = 4.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Column(
+            modifier = Modifier.padding(16.dp)
         ) {
-            // 新闻图片
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(historyItem.news.imageUrl)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = "新闻图片",
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
+            // 新闻标题
+            Text(
+                text = news.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.Gray.copy(alpha = 0.8f), // 已读状态
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
 
-            // 新闻信息
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 新闻摘要
+            Text(
+                text = news.content,
+                fontSize = 14.sp,
+                color = Color.Gray.copy(alpha = 0.7f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 新闻元信息
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = historyItem.news.title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Text(
-                    text = historyItem.news.category,
+                    text = news.publisher,
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .background(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(4.dp)
-                        )
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                    color = Color.Gray.copy(alpha = 0.6f)
                 )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "阅读时间: ${formatReadTime(historyItem.readTime)}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-
-                    IconButton(
-                        onClick = onDeleteClick,
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "删除",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
+                Text(
+                    text = "浏览时间: $formattedTime",
+                    fontSize = 12.sp,
+                    color = Color.Gray.copy(alpha = 0.6f)
+                )
             }
         }
     }
-}
-
-/**
- * 格式化阅读时间
- */
-private fun formatReadTime(timestamp: Long): String {
-    val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-    return dateFormat.format(Date(timestamp))
 }
