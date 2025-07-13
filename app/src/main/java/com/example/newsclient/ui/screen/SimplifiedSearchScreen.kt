@@ -42,6 +42,15 @@ import android.util.Log
 import kotlinx.coroutines.delay
 
 /**
+ * 搜索模式枚举 - 移到函数外部
+ */
+enum class SearchMode {
+    KEYWORD_ONLY,     // 仅关键词搜索
+    DATE_ONLY,        // 仅时间搜索
+    COMBINED          // 组合搜索
+}
+
+/**
  * 简化的搜索界面 - 重构版本
  * 分离搜索输入状态和结果显示状态，提高响应速度
  */
@@ -62,20 +71,33 @@ fun SimplifiedSearchScreen(
     var isInSearchMode by remember { mutableStateOf(true) } // 核心状态：是否在搜索模式
     var hasSearched by remember { mutableStateOf(false) } // 记录是否已经搜索过
 
-    // 使用remember来创建一个稳定的StateFlow引用，避免重复请求
+    // 搜索状态管理 - 使用最简洁的实现方式
+    var currentSearchMode by remember { mutableStateOf<SearchMode?>(null) }
     var currentSearchKeyword by remember { mutableStateOf("") }
+    var currentSearchDateQuery by remember { mutableStateOf("") }
     var currentSearchCategory by remember { mutableStateOf<NewsCategory?>(null) }
 
-    // 只有在真正执行搜索时才创建StateFlow
-    val searchResultState = remember(currentSearchKeyword, currentSearchCategory) {
-        if (currentSearchKeyword.isNotBlank()) {
-            Log.d("SimplifiedSearchScreen", "🔍 创建搜索StateFlow: keyword='$currentSearchKeyword', category=${currentSearchCategory?.value}")
-            viewModel.searchNews(currentSearchKeyword, currentSearchCategory)
-        } else {
-            Log.d("SimplifiedSearchScreen", "⏭️ 跳过搜索StateFlow创建，关键词为空")
-            kotlinx.coroutines.flow.MutableStateFlow(UiState.Empty)
+    // 创建搜索结果StateFlow - 使用更简洁的方式
+    val searchResultState by remember(currentSearchMode, currentSearchKeyword, currentSearchDateQuery, currentSearchCategory) {
+        when (currentSearchMode) {
+            SearchMode.KEYWORD_ONLY -> {
+                Log.d("SimplifiedSearchScreen", "🔍 创建关键词搜索StateFlow: keyword='$currentSearchKeyword'")
+                viewModel.searchNews(currentSearchKeyword, currentSearchCategory)
+            }
+            SearchMode.DATE_ONLY -> {
+                Log.d("SimplifiedSearchScreen", "🕒 创建时间搜索StateFlow: dateQuery='$currentSearchDateQuery'")
+                viewModel.searchNewsByDate(currentSearchDateQuery, currentSearchCategory)
+            }
+            SearchMode.COMBINED -> {
+                Log.d("SimplifiedSearchScreen", "🔍🕒 创建组合搜索StateFlow: keyword='$currentSearchKeyword', dateQuery='$currentSearchDateQuery'")
+                viewModel.searchNewsCombined(currentSearchKeyword, currentSearchDateQuery, currentSearchCategory)
+            }
+            null -> {
+                Log.d("SimplifiedSearchScreen", "⏭️ 无搜索模式，返回空StateFlow")
+                kotlinx.coroutines.flow.flowOf(UiState.Empty)
+            }
         }
-    }.collectAsState()
+    }.collectAsState(initial = UiState.Empty)
 
     // 搜索函数
     fun performSearch() {
@@ -97,11 +119,25 @@ fun SimplifiedSearchScreen(
         Log.d("SimplifiedSearchScreen", "转换后日期查询: '$dateQuery'")
         Log.d("SimplifiedSearchScreen", "日期查询是否为空: ${dateQuery == null}")
 
+        // 根据搜索条件确定搜索模式
         when {
-            searchText.isNotBlank() -> {
-                Log.d("SimplifiedSearchScreen", "✅ 执行: 关键词搜索")
-                // 更新搜索参数，触发搜索StateFlow的重新创建
+            searchText.isNotBlank() && dateQuery != null -> {
+                Log.d("SimplifiedSearchScreen", "✅ 执行: 组合搜索（关键词+时间）")
+                currentSearchMode = SearchMode.COMBINED
                 currentSearchKeyword = searchText.trim()
+                currentSearchDateQuery = dateQuery
+                currentSearchCategory = currentCategory
+            }
+            searchText.isNotBlank() && dateQuery == null -> {
+                Log.d("SimplifiedSearchScreen", "✅ 执行: 关键词搜索")
+                currentSearchMode = SearchMode.KEYWORD_ONLY
+                currentSearchKeyword = searchText.trim()
+                currentSearchCategory = currentCategory
+            }
+            searchText.isBlank() && dateQuery != null -> {
+                Log.d("SimplifiedSearchScreen", "✅ 执行: 时间搜索")
+                currentSearchMode = SearchMode.DATE_ONLY
+                currentSearchDateQuery = dateQuery
                 currentSearchCategory = currentCategory
             }
             else -> {
@@ -148,7 +184,7 @@ fun SimplifiedSearchScreen(
         )
     } else {
         SearchResultScreen(
-            searchResultState = searchResultState.value,
+            searchResultState = searchResultState,
             onNewsClick = onNewsClick,
             onBackToSearch = {
                 isInSearchMode = true

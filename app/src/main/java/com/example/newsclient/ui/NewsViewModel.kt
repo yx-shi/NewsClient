@@ -291,7 +291,10 @@ class NewsViewModel(
     // === 搜索相关方法 ===
 
     /**
-     * 搜索新闻
+     * 搜索新闻（关键词搜索）
+     * @param keyword 搜索关键词
+     * @param category 搜索范围分类
+     * @return 搜索结果的StateFlow
      */
     fun searchNews(
         keyword: String,
@@ -316,6 +319,94 @@ class NewsViewModel(
 
             } catch (e: Exception) {
                 searchState.value = UiState.Error("搜索失败: ${e.message}")
+            }
+        }
+
+        return searchState.asStateFlow()
+    }
+
+    /**
+     * 按时间搜索新闻
+     * @param dateQuery 时间查询字符串 (YYYY-MM-DD格式)
+     * @param category 搜索范围分类
+     * @return 搜索结果的StateFlow
+     */
+    fun searchNewsByDate(
+        dateQuery: String,
+        category: NewsCategory? = null
+    ): StateFlow<UiState<List<News>>> {
+        val searchState = MutableStateFlow<UiState<List<News>>>(UiState.Loading)
+
+        viewModelScope.launch {
+            try {
+                Log.d("NewsViewModel", "🕒 开始按时间搜索新闻")
+                Log.d("NewsViewModel", "   日期查询: '$dateQuery'")
+                Log.d("NewsViewModel", "   分类: ${category?.value}")
+
+                searchState.value = UiState.Loading
+
+                val result = repository.searchNewsByDate(
+                    dateQuery = dateQuery,
+                    category = category
+                )
+
+                Log.d("NewsViewModel", "📊 按时间搜索结果: ${result.news.size} 条新闻")
+
+                searchState.value = if (result.news.isEmpty()) {
+                    UiState.Empty
+                } else {
+                    UiState.Success(result.news)
+                }
+
+            } catch (e: Exception) {
+                Log.e("NewsViewModel", "按时间搜索失败", e)
+                searchState.value = UiState.Error("按时间搜索失败: ${e.message}")
+            }
+        }
+
+        return searchState.asStateFlow()
+    }
+
+    /**
+     * 组合搜索新闻（关键词+时间）
+     * @param keyword 搜索关键词
+     * @param dateQuery 时间查询字符串 (YYYY-MM-DD格式)
+     * @param category 搜索范围分类
+     * @return 搜索结果的StateFlow
+     */
+    fun searchNewsCombined(
+        keyword: String,
+        dateQuery: String,
+        category: NewsCategory? = null
+    ): StateFlow<UiState<List<News>>> {
+        val searchState = MutableStateFlow<UiState<List<News>>>(UiState.Loading)
+
+        viewModelScope.launch {
+            try {
+                Log.d("NewsViewModel", "🔍 开始组合搜索新闻")
+                Log.d("NewsViewModel", "   关键词: '$keyword'")
+                Log.d("NewsViewModel", "   日期查询: '$dateQuery'")
+                Log.d("NewsViewModel", "   分类: ${category?.value}")
+
+                searchState.value = UiState.Loading
+
+                val result = repository.searchNewsCombined(
+                    keyword = keyword,
+                    dateQuery = dateQuery,
+                    category = category
+                )
+
+                Log.d("NewsViewModel", "📊 组合搜索结果: ${result.news.size} 条新闻")
+
+                searchState.value = if (result.news.isEmpty()) {
+                    UiState.Empty
+                } else {
+                    UiState.Success(result.news)
+                }
+
+            } catch (e: Exception) {
+                Log.e("NewsViewModel", "组合搜索失败", e)
+                searchState.value = UiState.Error("组合搜索失败: ${e.message}")
             }
         }
 

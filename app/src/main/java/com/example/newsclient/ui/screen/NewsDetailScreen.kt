@@ -13,8 +13,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.newsclient.data.model.News
+import com.example.newsclient.ui.component.VideoPlayer
 
 /**
  * 新闻详情界面
@@ -194,7 +193,10 @@ private fun NewsMediaContent(
     // 优先显示视频，如果没有视频则显示图片
     when {
         news.videoUrl.isNotEmpty() -> {
-            VideoPlayer(videoUrl = news.videoUrl, modifier = modifier)
+            VideoPlayer(
+                videoUrl = news.videoUrl,
+                modifier = modifier
+            )
         }
         news.imageUrl.isNotEmpty() -> {
             NewsImage(imageUrl = news.imageUrl, modifier = modifier)
@@ -226,58 +228,6 @@ private fun NewsImage(imageUrl: String, modifier: Modifier = Modifier) {
                 .background(Color.Gray.copy(alpha = 0.1f)),
             error = painterResource(id = android.R.drawable.ic_menu_gallery)
         )
-    }
-}
-
-/**
- * 视频播放器组件
- */
-@Composable
-private fun VideoPlayer(videoUrl: String, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    var isPlayerReady by remember { mutableStateOf(false) }
-
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .clickable {
-                    // 点击播放视频
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl))
-                    context.startActivity(intent)
-                }
-        ) {
-            // 视频缩略图或加载中的占位符
-            NewsImage(imageUrl = videoUrl)
-
-            // 播放按钮覆盖层
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "播放",
-                    tint = Color.White,
-                    modifier = Modifier.size(48.dp)
-                )
-            }
-        }
-    }
-
-    // 监听播放器状态
-    LaunchedEffect(isPlayerReady) {
-        if (isPlayerReady) {
-            // TODO: 这里可以添加视频准备好的逻辑
-        }
     }
 }
 

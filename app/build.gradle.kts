@@ -119,6 +119,10 @@ dependencies {
     // 运行时权限处理
     implementation("com.google.accompanist:accompanist-permissions:0.32.0")
 
+    // ===== Material Icons 扩展 =====
+    // Material Icons 扩展包，包含更多图标如 Pause, VolumeOff, VolumeUp 等
+    implementation("androidx.compose.material:material-icons-extended:1.5.4")
+
     // ===== 测试相关 =====
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
@@ -128,4 +132,5 @@ dependencies {
     // UI 测试
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.5.4")
     androidTestImplementation("androidx.navigation:navigation-testing:2.7.6")
+
 }
