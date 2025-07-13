@@ -11,6 +11,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,6 +43,13 @@ fun NewsDetailScreen(
     onBackClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+
+    // 在进入详情页时标记为已读
+    LaunchedEffect(news.id) {
+        val userPreferences = com.example.newsclient.data.local.UserPreferences(context)
+        userPreferences.addToHistory(news)
+    }
 
     Column(
         modifier = Modifier
@@ -50,7 +61,8 @@ fun NewsDetailScreen(
             title = {
                 Text(
                     text = "新闻详情",
-                    fontSize = 18.sp,
+                    color = Color.Black,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
             },
@@ -58,7 +70,8 @@ fun NewsDetailScreen(
                 IconButton(onClick = onBackClick) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "返回"
+                        contentDescription = "返回",
+                        tint = Color.Black
                     )
                 }
             },
@@ -72,110 +85,119 @@ fun NewsDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(16.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // 新闻标题
-            NewsTitle(title = news.title)
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 发布信息
-            PublishInfo(
-                publisher = news.publisher,
-                publishTime = news.publishTime
+            Text(
+                text = news.title,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                lineHeight = 32.sp
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // 新闻元信息
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "来源：${news.publisher}",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                    Text(
+                        text = "时间：${news.publishTime}",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                }
 
-            // 媒体内容（图片或视频）
-            MediaContent(
-                imageUrl = news.imageUrl,
-                videoUrl = news.videoUrl
+                // 分类标签
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                ) {
+                    Text(
+                        text = news.category,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            // 新闻媒体内容（图片或视频）
+            NewsMediaContent(
+                news = news,
+                modifier = Modifier.fillMaxWidth()
             )
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             // 新闻正文
-            NewsContent(content = news.content)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "正文",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    Text(
+                        text = news.content,
+                        fontSize = 16.sp,
+                        color = Color.Black,
+                        lineHeight = 24.sp,
+                        textAlign = TextAlign.Justify
+                    )
+                }
+            }
+
+            // 关键词标签
+            if (news.keywords.isNotEmpty()) {
+                KeywordTagsSection(
+                    keywords = news.keywords,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // 收藏按钮
+            FavoriteButton(
+                news = news,
+                modifier = Modifier.fillMaxWidth()
+            )
 
             // 底部间距
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
 /**
- * 新闻标题组件
+ * 新闻媒体内容组件（图片或视频）
  */
 @Composable
-private fun NewsTitle(title: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Text(
-            text = title,
-            modifier = Modifier.padding(16.dp),
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
-            lineHeight = 28.sp
-        )
-    }
-}
-
-/**
- * 发布信息组件
- */
-@Composable
-private fun PublishInfo(
-    publisher: String,
-    publishTime: String
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = publisher,
-                fontSize = 14.sp,
-                color = Color(0xFF666666),
-                fontWeight = FontWeight.Medium
-            )
-
-            Text(
-                text = formatPublishTime(publishTime),
-                fontSize = 14.sp,
-                color = Color(0xFF999999)
-            )
-        }
-    }
-}
-
-/**
- * 媒体内容组件（图片或视频）
- */
-@Composable
-private fun MediaContent(
-    imageUrl: String,
-    videoUrl: String
+private fun NewsMediaContent(
+    news: News,
+    modifier: Modifier = Modifier
 ) {
     // 优先显示视频，如果没有视频则显示图片
     when {
-        videoUrl.isNotEmpty() -> {
-            VideoPlayer(videoUrl = videoUrl)
+        news.videoUrl.isNotEmpty() -> {
+            VideoPlayer(videoUrl = news.videoUrl, modifier = modifier)
         }
-        imageUrl.isNotEmpty() -> {
-            NewsImage(imageUrl = imageUrl)
+        news.imageUrl.isNotEmpty() -> {
+            NewsImage(imageUrl = news.imageUrl, modifier = modifier)
         }
     }
 }
@@ -184,9 +206,9 @@ private fun MediaContent(
  * 新闻图片组件
  */
 @Composable
-private fun NewsImage(imageUrl: String) {
+private fun NewsImage(imageUrl: String, modifier: Modifier = Modifier) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -211,12 +233,12 @@ private fun NewsImage(imageUrl: String) {
  * 视频播放器组件
  */
 @Composable
-private fun VideoPlayer(videoUrl: String) {
+private fun VideoPlayer(videoUrl: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var isPlayerReady by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -260,23 +282,109 @@ private fun VideoPlayer(videoUrl: String) {
 }
 
 /**
- * 新闻正文组件
+ * 关键词标签区域
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun NewsContent(content: String) {
+private fun KeywordTagsSection(
+    keywords: List<com.example.newsclient.data.model.Keyword>,
+    modifier: Modifier = Modifier
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Text(
-            text = content,
-            modifier = Modifier.padding(16.dp),
-            fontSize = 16.sp,
-            color = Color.Black,
-            lineHeight = 24.sp,
-            textAlign = TextAlign.Justify
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "关键词",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            // 使用FlowRow显示关键词标签
+            androidx.compose.foundation.layout.FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                keywords.forEach { keyword ->
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                    ) {
+                        Text(
+                            text = keyword.word,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 收藏按钮组件
+ */
+@Composable
+private fun FavoriteButton(
+    news: News,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val userPreferences = remember { com.example.newsclient.data.local.UserPreferences(context) }
+
+    // 检查是否已收藏
+    var isFavorite by remember {
+        mutableStateOf(
+            userPreferences.getFavoriteNews().any { it.news.id == news.id }
         )
+    }
+
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    if (isFavorite) {
+                        userPreferences.removeFromFavorites(news.id)
+                        isFavorite = false
+                    } else {
+                        userPreferences.addToFavorites(news)
+                        isFavorite = true
+                    }
+                }
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                contentDescription = if (isFavorite) "取消收藏" else "收藏",
+                tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Text(
+                text = if (isFavorite) "已收藏" else "收藏",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (isFavorite) Color.Red else MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 

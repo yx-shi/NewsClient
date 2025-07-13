@@ -41,7 +41,7 @@ fun TestScreen(
                     testResult = "正在测试API..."
                     try {
                         // 直接调用ViewModel的刷新方法
-                        viewModel.refreshNewsList()
+                        viewModel.refreshNews()
                         testResult = "API调用已触发，请查看Logcat日志"
                     } catch (e: Exception) {
                         testResult = "测试失败: ${e.message}"

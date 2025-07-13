@@ -50,9 +50,8 @@ fun NewsListScreen(
     viewModel: NewsViewModel = viewModel(factory = NewsViewModel.Factory)
 ) {
     // 收集ViewModel状态
-    val newsState by viewModel.newsState.collectAsState()
+    val newsListState by viewModel.newsListState.collectAsState()
     val currentCategory by viewModel.currentCategory.collectAsState()
-    val searchKeyword by viewModel.searchKeyword.collectAsState()
     val userCategories by viewModel.userCategories.collectAsState()
 
     // 添加调试日志
@@ -73,7 +72,6 @@ fun NewsListScreen(
     ) {
         // 搜索栏
         SearchBar(
-            searchKeyword = searchKeyword,
             onSearchClick = {
                 Log.d("NewsListScreen", "🔍 SearchBar 回调被触发，当前分类: ${currentCategory?.value ?: "全部"}")
                 try {
@@ -82,24 +80,27 @@ fun NewsListScreen(
                 } catch (e: Exception) {
                     Log.e("NewsListScreen", "❌ SearchBar 调用 onSearchClick 失败", e)
                 }
-            },
-            onSearchTextChange = { viewModel.setSearchKeyword(it) }
+            }
         )
 
         // 分类选择栏（包含管理按钮）
         CategorySelector(
             categories = categories,
             currentCategory = currentCategory,
-            onCategorySelected = { viewModel.setCategory(it) },
+            onCategorySelected = { viewModel.selectCategory(it) },
             onManageClick = onCategoryManageClick
         )
 
         // 新闻列表
         NewsListContent(
-            newsState = newsState,
-            onNewsClick = onNewsClick,
+            newsListState = UiState.Success(newsListState),
+            onNewsClick = { news ->
+                // 点击新闻时标记为已读
+                viewModel.markNewsAsRead(news)
+                onNewsClick(news)
+            },
             onLoadMore = { viewModel.loadMoreNews() },
-            onRefresh = { viewModel.refreshNewsList() }
+            onRefresh = { viewModel.refreshNews() }
         )
     }
 }
@@ -109,9 +110,7 @@ fun NewsListScreen(
  */
 @Composable
 private fun SearchBar(
-    searchKeyword: String?,
-    onSearchClick: () -> Unit,
-    onSearchTextChange: (String) -> Unit
+    onSearchClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -140,8 +139,8 @@ private fun SearchBar(
             Spacer(modifier = Modifier.width(12.dp))
 
             Text(
-                text = searchKeyword?.takeIf { it.isNotEmpty() } ?: "搜索新闻...",
-                color = if (searchKeyword.isNullOrEmpty()) Color.Gray else Color.Black,
+                text = "搜索新闻...",
+                color = Color.Gray,
                 fontSize = 16.sp,
                 modifier = Modifier.weight(1f)
             )
@@ -261,7 +260,7 @@ private fun CategoryManageButton(
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
 private fun NewsListContent(
-    newsState: UiState<com.example.newsclient.ui.NewsListState>,
+    newsListState: UiState<com.example.newsclient.ui.NewsListState>,
     onNewsClick: (News) -> Unit,
     onLoadMore: () -> Unit,
     onRefresh: () -> Unit
@@ -269,7 +268,7 @@ private fun NewsListContent(
     val listState = rememberLazyListState()
 
     // 下拉刷新状态
-    val isRefreshing = newsState is UiState.Loading
+    val isRefreshing = newsListState is UiState.Loading
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
         onRefresh = onRefresh
@@ -299,17 +298,17 @@ private fun NewsListContent(
                 val hasEnoughItems = scrollInfo.totalItems >= 5
 
                 Log.d("NewsListContent", "🔍 检查加载更多条件:")
-                Log.d("NewsListContent", "   当前状态: ${newsState::class.simpleName}")
+                Log.d("NewsListContent", "   当前状态: ${newsListState::class.simpleName}")
                 Log.d("NewsListContent", "   isNearBottom: $isNearBottom (${scrollInfo.lastVisibleIndex} >= ${scrollInfo.totalItems - 2})")
                 Log.d("NewsListContent", "   hasEnoughItems: $hasEnoughItems")
 
                 // 修改条件：只要有数据且接近底部就尝试加载更多
                 if (isNearBottom && hasEnoughItems) {
                     // 检查是否为Success状态且满足加载更多条件
-                    if (newsState is UiState.Success) {
-                        val canLoadMore = !newsState.data.isLoadingMore && newsState.data.hasMoreData
-                        Log.d("NewsListContent", "   Success状态 - isLoadingMore: ${newsState.data.isLoadingMore}")
-                        Log.d("NewsListContent", "   Success状态 - hasMoreData: ${newsState.data.hasMoreData}")
+                    if (newsListState is UiState.Success) {
+                        val canLoadMore = !newsListState.data.isLoadingMore && newsListState.data.hasMoreData
+                        Log.d("NewsListContent", "   Success状态 - isLoadingMore: ${newsListState.data.isLoadingMore}")
+                        Log.d("NewsListContent", "   Success状态 - hasMoreData: ${newsListState.data.hasMoreData}")
                         Log.d("NewsListContent", "   Success状态 - canLoadMore: $canLoadMore")
 
                         if (canLoadMore) {
@@ -333,15 +332,15 @@ private fun NewsListContent(
                 }
             } else {
                 Log.d("NewsListContent", "❌ 总数量为0，不检查加载更多")
-                if (newsState !is UiState.Success) {
-                    Log.d("NewsListContent", "❌ 状态不是Success: ${newsState::class.simpleName}")
+                if (newsListState !is UiState.Success) {
+                    Log.d("NewsListContent", "❌ 状态不是Success: ${newsListState::class.simpleName}")
                     // 额外调试：如果状态不是Success，输出更多信息
-                    when (newsState) {
+                    when (newsListState) {
                         is UiState.Loading -> {
                             Log.d("NewsListContent", "   状态详情: 正在加载中")
                         }
                         is UiState.Error -> {
-                            Log.d("NewsListContent", "   状态详情: 错误 - ${newsState.message}")
+                            Log.d("NewsListContent", "   状态详情: 错误 - ${newsListState.message}")
                         }
                         is UiState.Empty -> {
                             Log.d("NewsListContent", "   状态详情: 空数据")
@@ -360,7 +359,7 @@ private fun NewsListContent(
             .fillMaxSize()
             .pullRefresh(pullRefreshState)
     ) {
-        when (newsState) {
+        when (newsListState) {
             is UiState.Loading -> {
                 if (!isRefreshing) {
                     LoadingContent()
@@ -374,24 +373,25 @@ private fun NewsListContent(
                     contentPadding = PaddingValues(12.dp)
                 ) {
                     items(
-                        items = newsState.data.news,
+                        items = newsListState.data.news,
                         key = { news -> news.id } // 添加key以优化性能
                     ) { news ->
                         NewsItem(
                             news = news,
+                            isRead = newsListState.data.readNewsIds.contains(news.id),
                             onClick = { onNewsClick(news) }
                         )
                     }
 
                     // 加载更多指示器
-                    if (newsState.data.isLoadingMore) {
+                    if (newsListState.data.isLoadingMore) {
                         item {
                             LoadingMoreIndicator()
                         }
                     }
 
                     // 如果没有更多数据，显示底部提示
-                    if (!newsState.data.hasMoreData && newsState.data.news.isNotEmpty()) {
+                    if (!newsListState.data.hasMoreData && newsListState.data.news.isNotEmpty()) {
                         item {
                             NoMoreDataIndicator()
                         }
@@ -400,7 +400,7 @@ private fun NewsListContent(
             }
             is UiState.Error -> {
                 ErrorContent(
-                    message = newsState.message,
+                    message = newsListState.message,
                     onRetry = onRefresh
                 )
             }
@@ -433,13 +433,16 @@ private data class ScrollInfo(
 @Composable
 private fun NewsItem(
     news: News,
+    isRead: Boolean = false,
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isRead) Color(0xFFF5F5F5) else Color.White
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -452,7 +455,7 @@ private fun NewsItem(
                 text = news.title,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black,
+                color = if (isRead) Color.Gray else Color.Black,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -507,6 +510,13 @@ private fun NewsItem(
                         .fillMaxWidth()
                         .heightIn(max = 200.dp)
                         .clip(RoundedCornerShape(8.dp))
+                        .let { modifier ->
+                            if (isRead) {
+                                modifier.background(Color.Gray.copy(alpha = 0.1f))
+                            } else {
+                                modifier
+                            }
+                        }
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -516,7 +526,7 @@ private fun NewsItem(
             Text(
                 text = news.content,
                 fontSize = 14.sp,
-                color = Color.Gray,
+                color = if (isRead) Color.Gray.copy(alpha = 0.8f) else Color.Gray,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -531,14 +541,33 @@ private fun NewsItem(
                 Text(
                     text = news.publisher,
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = if (isRead) Color.Gray.copy(alpha = 0.7f) else Color.Gray
                 )
 
-                Text(
-                    text = formatPublishTime(news.publishTime),
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isRead) {
+                        Text(
+                            text = "已读",
+                            fontSize = 10.sp,
+                            color = Color.Gray,
+                            modifier = Modifier
+                                .background(
+                                    Color.Gray.copy(alpha = 0.2f),
+                                    RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+
+                    Text(
+                        text = formatPublishTime(news.publishTime),
+                        fontSize = 12.sp,
+                        color = if (isRead) Color.Gray.copy(alpha = 0.7f) else Color.Gray
+                    )
+                }
             }
         }
     }

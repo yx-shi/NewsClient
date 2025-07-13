@@ -62,7 +62,7 @@ fun SimplifiedSearchScreen(
     var isInSearchMode by remember { mutableStateOf(true) } // 核心状态：是否在搜索模式
     var hasSearched by remember { mutableStateOf(false) } // 记录是否已经搜索过
 
-    val searchResultState by viewModel.searchResultState.collectAsState()
+    val searchResultState by viewModel.searchNews(searchText.ifBlank { "" }, currentCategory).collectAsState()
 
     // 搜索函数
     fun performSearch() {
@@ -85,18 +85,9 @@ fun SimplifiedSearchScreen(
         Log.d("SimplifiedSearchScreen", "日期查询是否为空: ${dateQuery == null}")
 
         when {
-            searchText.isNotBlank() && dateQuery != null -> {
-                Log.d("SimplifiedSearchScreen", "✅ 执行: 关键词+日期组合搜索")
-                viewModel.searchNews(searchText.trim(), currentCategory, dateQuery)
-            }
-            searchText.isNotBlank() && dateQuery == null -> {
-                Log.d("SimplifiedSearchScreen", "✅ 执行: 纯关键词搜索")
-                viewModel.searchNews(searchText.trim(), currentCategory)
-            }
-            searchText.isBlank() && dateQuery != null -> {
-                Log.d("SimplifiedSearchScreen", "✅ 执行: 纯日期搜索")
-                Log.d("SimplifiedSearchScreen", ">>> 重要：这里应该调用纯日期搜索")
-                viewModel.searchNewsByDate(dateQuery, currentCategory)
+            searchText.isNotBlank() -> {
+                Log.d("SimplifiedSearchScreen", "✅ 执行: 关键词搜索")
+                // 搜索结果通过 searchResultState 自动更新
             }
             else -> {
                 Log.d("SimplifiedSearchScreen", "❌ 未知搜索条件组合")

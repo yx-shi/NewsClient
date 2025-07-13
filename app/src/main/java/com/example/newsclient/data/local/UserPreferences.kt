@@ -3,6 +3,7 @@ package com.example.newsclient.data.local
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.newsclient.data.model.NewsCategory
+import com.example.newsclient.data.model.News
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
@@ -10,8 +11,24 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
+ * 历史记录数据类
+ */
+data class NewsHistory(
+    val news: News,
+    val readTime: Long = System.currentTimeMillis()
+)
+
+/**
+ * 收藏新闻数据类
+ */
+data class NewsFavorite(
+    val news: News,
+    val favoriteTime: Long = System.currentTimeMillis()
+)
+
+/**
  * 用户偏好设置管理类
- * 负责保存和读取用户的分类偏好设置
+ * 负责保存和读取用户的分类偏好设置、历史记录和收藏
  */
 class UserPreferences(context: Context) {
 
@@ -24,15 +41,25 @@ class UserPreferences(context: Context) {
 
     // 用于响应式更新的StateFlow
     private val _userCategories = MutableStateFlow<List<NewsCategory>>(emptyList())
+    private val _historyNews = MutableStateFlow<List<NewsHistory>>(emptyList())
+    private val _favoriteNews = MutableStateFlow<List<NewsFavorite>>(emptyList())
 
     companion object {
         private const val KEY_SELECTED_CATEGORIES = "selected_categories"
         private const val KEY_CATEGORY_ORDER = "category_order"
+        private const val KEY_HISTORY_NEWS = "history_news"
+        private const val KEY_READ_NEWS_IDS = "read_news_ids"
+        private const val KEY_FAVORITE_NEWS = "favorite_news"
+        private const val KEY_FAVORITE_NEWS_IDS = "favorite_news_ids"
+        private const val MAX_HISTORY_SIZE = 500 // 最大历史记录数量
+        private const val MAX_FAVORITE_SIZE = 1000 // 最大收藏数量
     }
 
     init {
-        // 初始化时加载用户分类
+        // 初始化时加载用户分类、历史记录和收藏
         _userCategories.value = getSelectedCategories()
+        _historyNews.value = getHistoryNews()
+        _favoriteNews.value = getFavoriteNews()
     }
 
     /**
@@ -163,5 +190,212 @@ class UserPreferences(context: Context) {
             NewsCategory.FINANCE,
             NewsCategory.SOCIETY
         )
+    }
+
+    /**
+     * 添加新闻到历史记录
+     */
+    fun addToHistory(news: News) {
+        val currentHistory = _historyNews.value.toMutableList()
+
+        // 移除已存在的相同新闻（如果有）
+        currentHistory.removeAll { it.news.id == news.id }
+
+        // 添加到列表开头
+        currentHistory.add(0, NewsHistory(news))
+
+        // 限制历史记录数量
+        if (currentHistory.size > MAX_HISTORY_SIZE) {
+            currentHistory.removeAt(currentHistory.size - 1)
+        }
+
+        // 保存到SharedPreferences
+        val json = gson.toJson(currentHistory)
+        sharedPreferences.edit()
+            .putString(KEY_HISTORY_NEWS, json)
+            .apply()
+
+        // 更新StateFlow
+        _historyNews.value = currentHistory
+
+        // 同时更新已读新闻ID集合
+        addReadNewsId(news.id)
+    }
+
+    /**
+     * 获取历史记录
+     */
+    fun getHistoryNews(): List<NewsHistory> {
+        val savedJson = sharedPreferences.getString(KEY_HISTORY_NEWS, null)
+        return if (savedJson != null) {
+            try {
+                val type = object : TypeToken<List<NewsHistory>>() {}.type
+                gson.fromJson(savedJson, type) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+    }
+
+    /**
+     * 获取历史记录的Flow
+     */
+    fun getHistoryNewsFlow(): Flow<List<NewsHistory>> = _historyNews.asStateFlow()
+
+    /**
+     * 清空历史记录
+     */
+    fun clearHistory() {
+        sharedPreferences.edit()
+            .remove(KEY_HISTORY_NEWS)
+            .remove(KEY_READ_NEWS_IDS)
+            .apply()
+        _historyNews.value = emptyList()
+    }
+
+    /**
+     * 删除单条历史记录
+     */
+    fun removeFromHistory(newsId: String) {
+        val currentHistory = _historyNews.value.toMutableList()
+        currentHistory.removeAll { it.news.id == newsId }
+
+        val json = gson.toJson(currentHistory)
+        sharedPreferences.edit()
+            .putString(KEY_HISTORY_NEWS, json)
+            .apply()
+
+        _historyNews.value = currentHistory
+
+        // 同时从已读集合中移除
+        removeReadNewsId(newsId)
+    }
+
+    /**
+     * 添加新闻到收藏
+     */
+    fun addToFavorites(news: News) {
+        val currentFavorites = _favoriteNews.value.toMutableList()
+
+        // 移除已存在的相同新闻（如果有）
+        currentFavorites.removeAll { it.news.id == news.id }
+
+        // 添加到列表开头
+        currentFavorites.add(0, NewsFavorite(news))
+
+        // 限制收藏数量
+        if (currentFavorites.size > MAX_FAVORITE_SIZE) {
+            currentFavorites.removeAt(currentFavorites.size - 1)
+        }
+
+        // 保存到SharedPreferences
+        val json = gson.toJson(currentFavorites)
+        sharedPreferences.edit()
+            .putString(KEY_FAVORITE_NEWS, json)
+            .apply()
+
+        // 更新StateFlow
+        _favoriteNews.value = currentFavorites
+    }
+
+    /**
+     * 获取收藏的新闻
+     */
+    fun getFavoriteNews(): List<NewsFavorite> {
+        val savedJson = sharedPreferences.getString(KEY_FAVORITE_NEWS, null)
+        return if (savedJson != null) {
+            try {
+                val type = object : TypeToken<List<NewsFavorite>>() {}.type
+                gson.fromJson(savedJson, type) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+    }
+
+    /**
+     * 获取收藏新闻的Flow
+     */
+    fun getFavoriteNewsFlow(): Flow<List<NewsFavorite>> = _favoriteNews.asStateFlow()
+
+    /**
+     * 清空收藏
+     */
+    fun clearFavorites() {
+        sharedPreferences.edit()
+            .remove(KEY_FAVORITE_NEWS)
+            .remove(KEY_FAVORITE_NEWS_IDS)
+            .apply()
+        _favoriteNews.value = emptyList()
+    }
+
+    /**
+     * 删除单条收藏
+     */
+    fun removeFromFavorites(newsId: String) {
+        val currentFavorites = _favoriteNews.value.toMutableList()
+        currentFavorites.removeAll { it.news.id == newsId }
+
+        val json = gson.toJson(currentFavorites)
+        sharedPreferences.edit()
+            .putString(KEY_FAVORITE_NEWS, json)
+            .apply()
+
+        _favoriteNews.value = currentFavorites
+    }
+
+    /**
+     * 添加已读新闻ID
+     */
+    private fun addReadNewsId(newsId: String) {
+        val readIds = getReadNewsIds().toMutableSet()
+        readIds.add(newsId)
+
+        val json = gson.toJson(readIds.toList())
+        sharedPreferences.edit()
+            .putString(KEY_READ_NEWS_IDS, json)
+            .apply()
+    }
+
+    /**
+     * 移除已读新闻ID
+     */
+    private fun removeReadNewsId(newsId: String) {
+        val readIds = getReadNewsIds().toMutableSet()
+        readIds.remove(newsId)
+
+        val json = gson.toJson(readIds.toList())
+        sharedPreferences.edit()
+            .putString(KEY_READ_NEWS_IDS, json)
+            .apply()
+    }
+
+    /**
+     * 获取已读新闻ID集合
+     */
+    fun getReadNewsIds(): Set<String> {
+        val savedJson = sharedPreferences.getString(KEY_READ_NEWS_IDS, null)
+        return if (savedJson != null) {
+            try {
+                val type = object : TypeToken<List<String>>() {}.type
+                val ids: List<String> = gson.fromJson(savedJson, type) ?: emptyList()
+                ids.toSet()
+            } catch (e: Exception) {
+                emptySet()
+            }
+        } else {
+            emptySet()
+        }
+    }
+
+    /**
+     * 检查新闻是否已读
+     */
+    fun isNewsRead(newsId: String): Boolean {
+        return getReadNewsIds().contains(newsId)
     }
 }
