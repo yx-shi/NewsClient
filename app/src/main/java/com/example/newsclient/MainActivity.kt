@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -13,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -69,23 +71,41 @@ sealed class BottomNavItem(
 @Composable
 fun NewsApp() {
     val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
     val bottomNavItems = listOf(
         BottomNavItem.Home,
         BottomNavItem.Profile
     )
 
+    // 定义需要显示底部导航栏的路由
+    val routesWithBottomBar = setOf(
+        BottomNavItem.Home.route,
+        BottomNavItem.Profile.route
+    )
+
+    // 判断当前页面是否应该显示底部导航栏
+    val shouldShowBottomBar = currentRoute in routesWithBottomBar
+
     Scaffold(
         bottomBar = {
-            BottomNavigation(
-                navController = navController,
-                items = bottomNavItems
-            )
+            // 只在指定的路由显示底部导航栏
+            if (shouldShowBottomBar) {
+                BottomNavigation(
+                    navController = navController,
+                    items = bottomNavItems
+                )
+            }
         }
     ) { innerPadding ->
         NavHost(
             navController = navController,
             startDestination = BottomNavItem.Home.route,
-            modifier = Modifier.fillMaxSize().padding(innerPadding)
+            modifier = Modifier.fillMaxSize().padding(
+                // 根据是否显示底部导航栏来调整padding
+                if (shouldShowBottomBar) innerPadding else PaddingValues(0.dp)
+            )
         ) {
             // 首页（新闻列表）
             composable(BottomNavItem.Home.route) {
@@ -118,14 +138,18 @@ fun NewsApp() {
 
             // 我的页面
             composable(BottomNavItem.Profile.route) {
+                android.util.Log.d("MainActivity", "🏠 进入ProfileScreen")
                 ProfileScreen(
                     onHistoryClick = {
+                        android.util.Log.d("MainActivity", "📚 历史记录被点击")
                         navController.navigate("history")
                     },
                     onFavoriteClick = {
+                        android.util.Log.d("MainActivity", "❤️ 收藏被点击")
                         navController.navigate("favorite")
                     },
                     onSettingsClick = {
+                        android.util.Log.d("MainActivity", "⚙️ 设置被点击")
                         // 预留设置功能
                     }
                 )

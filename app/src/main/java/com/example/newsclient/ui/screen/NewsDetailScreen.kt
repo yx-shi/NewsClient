@@ -341,12 +341,9 @@ private fun FavoriteButton(
     val context = LocalContext.current
     val userPreferences = remember { com.example.newsclient.data.local.UserPreferences(context) }
 
-    // 检查是否已收藏
-    var isFavorite by remember {
-        mutableStateOf(
-            userPreferences.getFavoriteNews().any { it.news.id == news.id }
-        )
-    }
+    // 检查是否已收藏 - 使用Flow来监听收藏状态变化
+    val favoriteNews by userPreferences.getFavoriteNewsFlow().collectAsState(initial = emptyList())
+    val isFavorite = favoriteNews.any { it.news.id == news.id }
 
     Card(
         modifier = modifier,
@@ -359,10 +356,10 @@ private fun FavoriteButton(
                 .clickable {
                     if (isFavorite) {
                         userPreferences.removeFromFavorites(news.id)
-                        isFavorite = false
+                        android.util.Log.d("NewsDetailScreen", "取消收藏: ${news.title}")
                     } else {
                         userPreferences.addToFavorites(news)
-                        isFavorite = true
+                        android.util.Log.d("NewsDetailScreen", "添加收藏: ${news.title}")
                     }
                 }
                 .padding(16.dp),

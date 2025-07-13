@@ -29,6 +29,7 @@ import com.example.newsclient.data.local.NewsFavorite
 import com.example.newsclient.data.model.News
 import com.example.newsclient.ui.UiState
 import com.example.newsclient.ui.viewmodel.FavoriteViewModel
+import com.example.newsclient.ui.components.CommonNewsItem
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -167,10 +168,12 @@ fun FavoriteScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(currentState.data) { favoriteItem ->
-                        FavoriteNewsItem(
-                            favoriteItem = favoriteItem,
-                            onNewsClick = { onNewsClick(favoriteItem.news) },
-                            onDeleteClick = { viewModel.deleteFavoriteItem(favoriteItem.news.id) }
+                        // 使用通用的NewsItem样式，保持与主页一致
+                        CommonNewsItem(
+                            news = favoriteItem.news,
+                            isRead = false, // 收藏的新闻不显示已读状态
+                            onClick = { onNewsClick(favoriteItem.news) },
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
