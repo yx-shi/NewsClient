@@ -56,5 +56,6 @@ data class GLMUsage(
 data class NewsSummary(
     val newsId: String,
     val summary: String,
-    val generatedAt: Long = System.currentTimeMillis()
+    val generatedAt: Long = System.currentTimeMillis(),
+    val apiKey: String = ""          // 添加API Key字段用于验证
 )

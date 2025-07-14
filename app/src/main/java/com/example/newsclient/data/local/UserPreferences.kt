@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.example.newsclient.data.model.NewsCategory
 import com.example.newsclient.data.model.News
+import com.example.newsclient.data.model.NewsSummary
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
@@ -28,7 +29,7 @@ data class NewsFavorite(
 
 /**
  * 用户偏好设置管理类
- * 负责保存和读取用户的分类偏好设置、历史记录和收藏
+ * 负责保存和读取用户的分类偏好设置、历史记录、收藏和摘要
  */
 class UserPreferences(context: Context) {
 
@@ -43,6 +44,7 @@ class UserPreferences(context: Context) {
     private val _userCategories = MutableStateFlow<List<NewsCategory>>(emptyList())
     private val _historyNews = MutableStateFlow<List<NewsHistory>>(emptyList())
     private val _favoriteNews = MutableStateFlow<List<NewsFavorite>>(emptyList())
+    private val _newsSummaries = MutableStateFlow<List<NewsSummary>>(emptyList())
 
     companion object {
         private const val KEY_SELECTED_CATEGORIES = "selected_categories"
@@ -51,18 +53,21 @@ class UserPreferences(context: Context) {
         private const val KEY_READ_NEWS_IDS = "read_news_ids"
         private const val KEY_FAVORITE_NEWS = "favorite_news"
         private const val KEY_FAVORITE_NEWS_IDS = "favorite_news_ids"
+        private const val KEY_NEWS_SUMMARIES = "news_summaries"
         private const val MAX_HISTORY_SIZE = 500 // 最大历史记录数量
         private const val MAX_FAVORITE_SIZE = 1000 // 最大收藏数量
+        private const val MAX_SUMMARY_SIZE = 1000 // 最大摘要缓存数量
     }
 
     init {
-        // 初始化时加载用户分类、历史记录和收藏
+        // 初始化时加载用户分类、历史记录、收藏和摘要
         _userCategories.value = getSelectedCategories()
         _historyNews.value = getHistoryNews()
         _favoriteNews.value = getFavoriteNews()
+        _newsSummaries.value = getNewsSummaries()
 
         // 添加调试日志以确认初始化状态
-        android.util.Log.d("UserPreferences", "初始化完成 - 收藏数量: ${_favoriteNews.value.size}")
+        android.util.Log.d("UserPreferences", "初始化完成 - 收藏数量: ${_favoriteNews.value.size}, 摘要数量: ${_newsSummaries.value.size}")
     }
 
     /**
@@ -390,7 +395,7 @@ class UserPreferences(context: Context) {
     }
 
     /**
-     * 移除已���新闻ID
+     * 移除已读新闻ID
      */
     private fun removeReadNewsId(newsId: String) {
         val readIds = getReadNewsIds().toMutableSet()
@@ -435,5 +440,123 @@ class UserPreferences(context: Context) {
         val currentData = getFavoriteNews()
         _favoriteNews.value = currentData
         android.util.Log.d("UserPreferences", "强制刷新收藏Flow: ${currentData.size} 条")
+    }
+
+    /**
+     * 获取新闻摘要
+     */
+    fun getNewsSummaries(): List<NewsSummary> {
+        val savedJson = sharedPreferences.getString(KEY_NEWS_SUMMARIES, null)
+        return if (savedJson != null) {
+            try {
+                val type = object : TypeToken<List<NewsSummary>>() {}.type
+                val parsedResult: List<NewsSummary>? = gson.fromJson(savedJson, type)
+                parsedResult ?: emptyList()
+            } catch (e: Exception) {
+                android.util.Log.e("UserPreferences", "解析摘要数据失败", e)
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+    }
+
+    /**
+     * 保存新闻摘要
+     */
+    fun saveNewsSummaries(summaries: List<NewsSummary>) {
+        val summariesToSave = summaries.take(MAX_SUMMARY_SIZE) // 限制保存数量
+        val json = gson.toJson(summariesToSave)
+        sharedPreferences.edit()
+            .putString(KEY_NEWS_SUMMARIES, json)
+            .apply()
+
+        // 更新StateFlow
+        _newsSummaries.value = summariesToSave
+    }
+
+    /**
+     * 添加新闻摘要
+     */
+    fun addNewsSummary(newsId: String, summary: String, apiKey: String) {
+        val currentSummaries = _newsSummaries.value.toMutableList()
+
+        // 移除已存在的相同新闻摘要（如果有）
+        currentSummaries.removeAll { it.newsId == newsId }
+
+        // 添加新摘要到列表开头
+        currentSummaries.add(0, NewsSummary(newsId, summary, System.currentTimeMillis(), apiKey))
+
+        // 限制摘要数量
+        if (currentSummaries.size > MAX_SUMMARY_SIZE) {
+            currentSummaries.removeAt(currentSummaries.size - 1)
+        }
+
+        // 保存到SharedPreferences
+        val json = gson.toJson(currentSummaries)
+        sharedPreferences.edit()
+            .putString(KEY_NEWS_SUMMARIES, json)
+            .apply()
+
+        // 更新StateFlow
+        _newsSummaries.value = currentSummaries
+
+        android.util.Log.d("UserPreferences", "添加摘要: $newsId, 当前摘要数量: ${currentSummaries.size}")
+    }
+
+    /**
+     * 根据新闻ID获取摘要
+     */
+    fun getNewsSummaryById(newsId: String): NewsSummary? {
+        return _newsSummaries.value.find { it.newsId == newsId }
+    }
+
+    /**
+     * 检查新闻是否已有摘要
+     */
+    fun hasNewsSummary(newsId: String): Boolean {
+        return _newsSummaries.value.any { it.newsId == newsId }
+    }
+
+    /**
+     * 删除指定新闻的摘要
+     */
+    fun removeNewsSummary(newsId: String) {
+        val currentSummaries = _newsSummaries.value.toMutableList()
+        currentSummaries.removeAll { it.newsId == newsId }
+
+        val json = gson.toJson(currentSummaries)
+        sharedPreferences.edit()
+            .putString(KEY_NEWS_SUMMARIES, json)
+            .apply()
+
+        _newsSummaries.value = currentSummaries
+
+        android.util.Log.d("UserPreferences", "删除摘要: $newsId, 剩余摘要数量: ${currentSummaries.size}")
+    }
+
+    /**
+     * 获取摘要Flow（用于响应式更新）
+     */
+    fun getNewsSummariesFlow(): Flow<List<NewsSummary>> = _newsSummaries.asStateFlow()
+
+    /**
+     * 清理过期的摘要（可选功能，比如清理30天前的摘要）
+     */
+    fun cleanExpiredSummaries(daysToKeep: Int = 30) {
+        val cutoffTime = System.currentTimeMillis() - (daysToKeep * 24 * 60 * 60 * 1000L)
+        val currentSummaries = _newsSummaries.value.toMutableList()
+        val filteredSummaries = currentSummaries.filter { it.generatedAt > cutoffTime }
+
+        if (filteredSummaries.size != currentSummaries.size) {
+            val json = gson.toJson(filteredSummaries)
+            sharedPreferences.edit()
+                .putString(KEY_NEWS_SUMMARIES, json)
+                .apply()
+
+            _newsSummaries.value = filteredSummaries
+
+            android.util.Log.d("UserPreferences", "清理过期摘要: 删除 ${currentSummaries.size - filteredSummaries.size} 条")
+        }
     }
 }

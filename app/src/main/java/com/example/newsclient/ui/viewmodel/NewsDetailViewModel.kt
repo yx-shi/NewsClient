@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.newsclient.NewsApplication
+import com.example.newsclient.data.local.UserPreferences
 import com.example.newsclient.data.model.News
 import com.example.newsclient.data.repository.NewsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,18 +28,16 @@ sealed class SummaryState {
 
 /**
  * 新闻详情ViewModel
- * 负责管理新闻详情数据、缓存和摘要生成
+ * 负责管理新闻详情数据、本地摘要存储和摘要生成
  */
 class NewsDetailViewModel(
-    private val repository: NewsRepository
+    private val repository: NewsRepository,
+    private val userPreferences: UserPreferences
 ) : ViewModel() {
 
     // 摘要状态管理
     private val _summaryState = MutableStateFlow<SummaryState>(SummaryState.Idle)
     val summaryState: StateFlow<SummaryState> = _summaryState.asStateFlow()
-
-    // 摘要缓存，避免重复生成
-    private val summaryCache = mutableMapOf<String, String>()
 
     /**
      * 根据新闻ID获取新闻详情
@@ -49,6 +48,7 @@ class NewsDetailViewModel(
 
     /**
      * 生成新闻摘要
+     * 先检查本地存储，如果没有则调用API生成
      * @param news 要生成摘要的新闻
      * @param apiKey GLM API密钥
      */
@@ -59,10 +59,11 @@ class NewsDetailViewModel(
                 Log.d("NewsDetailViewModel", "   新闻ID: ${news.id}")
                 Log.d("NewsDetailViewModel", "   API Key长度: ${apiKey.length}")
 
-                // 检查缓存
-                if (summaryCache.containsKey(news.id)) {
-                    Log.d("NewsDetailViewModel", "📦 从缓存获取摘要")
-                    _summaryState.value = SummaryState.Success(summaryCache[news.id]!!)
+                // 首先检查本地存储
+                val cachedSummary = userPreferences.getNewsSummaryById(news.id)
+                if (cachedSummary != null) {
+                    Log.d("NewsDetailViewModel", "📦 从本地存储获取摘要")
+                    _summaryState.value = SummaryState.Success(cachedSummary.summary)
                     return@launch
                 }
 
@@ -78,18 +79,32 @@ class NewsDetailViewModel(
                 // 调用Repository生成摘要
                 val summary = repository.generateNewsSummary(news, apiKey)
 
-                // 缓存摘要
-                summaryCache[news.id] = summary
+                // 保存到本地存储
+                userPreferences.addNewsSummary(news.id, summary, apiKey)
 
                 // 更新状态为成功
                 _summaryState.value = SummaryState.Success(summary)
 
-                Log.d("NewsDetailViewModel", "✅ 摘要生成成功")
+                Log.d("NewsDetailViewModel", "✅ 摘要生成成功并已保存到本地")
 
             } catch (e: Exception) {
                 Log.e("NewsDetailViewModel", "❌ 摘要生成失败", e)
                 _summaryState.value = SummaryState.Error(e.message ?: "生成摘要失败")
             }
+        }
+    }
+
+    /**
+     * 加载本地摘要（如果存在）
+     * 在界面初始化时调用，检查是否有本地缓存的摘要
+     */
+    fun loadLocalSummary(newsId: String) {
+        val cachedSummary = userPreferences.getNewsSummaryById(newsId)
+        if (cachedSummary != null) {
+            _summaryState.value = SummaryState.Success(cachedSummary.summary)
+            Log.d("NewsDetailViewModel", "📦 加载本地摘要: $newsId")
+        } else {
+            _summaryState.value = SummaryState.Idle
         }
     }
 
@@ -101,10 +116,20 @@ class NewsDetailViewModel(
     }
 
     /**
-     * 清除摘要缓存
+     * 删除本地摘要
      */
-    fun clearSummaryCache() {
-        summaryCache.clear()
+    fun deleteSummary(newsId: String) {
+        userPreferences.removeNewsSummary(newsId)
+        _summaryState.value = SummaryState.Idle
+        Log.d("NewsDetailViewModel", "🗑️ 删除本地摘要: $newsId")
+    }
+
+    /**
+     * 清理过期摘要
+     */
+    fun cleanExpiredSummaries() {
+        userPreferences.cleanExpiredSummaries()
+        Log.d("NewsDetailViewModel", "🧹 清理过期摘要")
     }
 
     companion object {
@@ -139,7 +164,8 @@ class NewsDetailViewModel(
             initializer {
                 val application = (this[APPLICATION_KEY] as NewsApplication)
                 NewsDetailViewModel(
-                    repository = application.container.newsRepository
+                    repository = application.container.newsRepository,
+                    userPreferences = UserPreferences(application.applicationContext)
                 )
             }
         }

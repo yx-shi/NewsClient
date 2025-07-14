@@ -1,7 +1,5 @@
 package com.example.newsclient.ui.screen
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,8 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
@@ -73,7 +70,7 @@ fun NewsDetailScreen(
             navigationIcon = {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "返回",
                         tint = Color.Black
                     )
@@ -259,10 +256,16 @@ private fun AISummarySection(
     summaryState: com.example.newsclient.ui.viewmodel.SummaryState,
     onGenerateSummary: (apiKey: String) -> Unit,
     onResetSummary: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: com.example.newsclient.ui.viewmodel.NewsDetailViewModel = viewModel(factory = com.example.newsclient.ui.viewmodel.NewsDetailViewModel.Factory)
 ) {
     // GLM API密钥 - 已配置真实密钥
     val apiKey = "aaaffc29498342d78024bc5afcfd6183.mwC3ibdlWpMftsPe"
+
+    // 在组件初始化时尝试加载本地摘要
+    LaunchedEffect(news.id) {
+        viewModel.loadLocalSummary(news.id)
+    }
 
     Card(
         modifier = modifier,
@@ -293,10 +296,20 @@ private fun AISummarySection(
                         )
                     }
                     is com.example.newsclient.ui.viewmodel.SummaryState.Success -> {
-                        Text(
-                            text = "✅",
-                            fontSize = 16.sp
-                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "📦",
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "已缓存",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                     is com.example.newsclient.ui.viewmodel.SummaryState.Error -> {
                         Text(
@@ -360,14 +373,31 @@ private fun AISummarySection(
                         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(
-                            text = summaryState.summary,
-                            fontSize = 15.sp,
-                            color = Color.Black,
-                            lineHeight = 22.sp,
-                            textAlign = TextAlign.Justify,
+                        Column(
                             modifier = Modifier.padding(16.dp)
-                        )
+                        ) {
+                            Text(
+                                text = summaryState.summary,
+                                fontSize = 15.sp,
+                                color = Color.Black,
+                                lineHeight = 22.sp,
+                                textAlign = TextAlign.Justify
+                            )
+
+                            // 添加本地存储标识
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Text(
+                                    text = "💾 已保存到本地",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -400,45 +430,86 @@ private fun AISummarySection(
             Spacer(modifier = Modifier.height(16.dp))
 
             // 操作按钮
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // 生成摘要按钮
-                Button(
-                    onClick = {
-                        onGenerateSummary(apiKey)
-                    },
-                    modifier = Modifier.weight(1f),
-                    enabled = summaryState !is com.example.newsclient.ui.viewmodel.SummaryState.Loading,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = when (summaryState) {
-                            is com.example.newsclient.ui.viewmodel.SummaryState.Loading -> "生成中..."
-                            is com.example.newsclient.ui.viewmodel.SummaryState.Success -> "重新生成"
-                            else -> "生成摘要"
+            when (summaryState) {
+                is com.example.newsclient.ui.viewmodel.SummaryState.Success -> {
+                    // 摘要已生成时显示的按钮
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // 重新生成按钮
+                        Button(
+                            onClick = {
+                                onGenerateSummary(apiKey)
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(text = "🔄 重新生成")
                         }
-                    )
+
+                        // 删除摘要按钮
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.deleteSummary(news.id)
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color.Transparent,
+                                contentColor = MaterialTheme.colorScheme.error
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(text = "🗑️ 删除")
+                        }
+                    }
                 }
 
-                // 重置按钮
-                if (summaryState !is com.example.newsclient.ui.viewmodel.SummaryState.Idle) {
-                    OutlinedButton(
-                        onClick = onResetSummary,
-                        modifier = Modifier.weight(1f),
-                        enabled = summaryState !is com.example.newsclient.ui.viewmodel.SummaryState.Loading,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = MaterialTheme.colorScheme.primary
-                        ),
-                        shape = RoundedCornerShape(8.dp)
+                else -> {
+                    // 其他状态时显示的按钮
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(text = "重置")
+                        // 生成摘要按钮
+                        Button(
+                            onClick = {
+                                onGenerateSummary(apiKey)
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = summaryState !is com.example.newsclient.ui.viewmodel.SummaryState.Loading,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = when (summaryState) {
+                                    is com.example.newsclient.ui.viewmodel.SummaryState.Loading -> "生成中..."
+                                    else -> "✨ 生成摘要"
+                                }
+                            )
+                        }
+
+                        // 重置按钮（仅在错误状态时显示）
+                        if (summaryState is com.example.newsclient.ui.viewmodel.SummaryState.Error) {
+                            OutlinedButton(
+                                onClick = onResetSummary,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = Color.Transparent,
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(text = "🔄 重置")
+                            }
+                        }
                     }
                 }
             }
