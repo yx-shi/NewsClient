@@ -11,9 +11,16 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.example.newsclient.NewsApplication
+import com.example.newsclient.data.model.UserSettings
 
 private val lightScheme = lightColorScheme(
     primary = primaryLight,
@@ -259,22 +266,118 @@ val unspecified_scheme = ColorFamily(
 fun NewsClientTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false, // 修改为false，禁用动态颜色，使用你的自定义主题
     content: @Composable () -> Unit
 ) {
+    val context = LocalContext.current
+    val application = context.applicationContext as NewsApplication
+    val userPreferences = application.userPreferences
+
+    // 监听用户设置的变化
+    val userSettings by userPreferences.getUserSettingsFlow().collectAsState(initial = UserSettings())
+
+    // 使用用户设置的主题模式，如果没有设置则使用系统默认
+    val effectiveDarkTheme = userSettings.isDarkTheme
+
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (effectiveDarkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
 
-        darkTheme -> darkScheme
+        effectiveDarkTheme -> darkScheme
         else -> lightScheme
     }
 
+    // 根据用户设置创建动态字体大小的Typography
+    val dynamicTypography = createDynamicTypography(userSettings.fontSizeScale)
+
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = dynamicTypography,
         content = content
+    )
+}
+
+/**
+ * 根据字体缩放比例创建动态Typography
+ */
+private fun createDynamicTypography(fontScale: Float): Typography {
+    return Typography(
+        displayLarge = TextStyle(
+            fontSize = (57 * fontScale).sp,
+            lineHeight = (64 * fontScale).sp,
+            fontWeight = FontWeight.Normal,
+        ),
+        displayMedium = TextStyle(
+            fontSize = (45 * fontScale).sp,
+            lineHeight = (52 * fontScale).sp,
+            fontWeight = FontWeight.Normal,
+        ),
+        displaySmall = TextStyle(
+            fontSize = (36 * fontScale).sp,
+            lineHeight = (44 * fontScale).sp,
+            fontWeight = FontWeight.Normal,
+        ),
+        headlineLarge = TextStyle(
+            fontSize = (32 * fontScale).sp,
+            lineHeight = (40 * fontScale).sp,
+            fontWeight = FontWeight.Normal,
+        ),
+        headlineMedium = TextStyle(
+            fontSize = (28 * fontScale).sp,
+            lineHeight = (36 * fontScale).sp,
+            fontWeight = FontWeight.Normal,
+        ),
+        headlineSmall = TextStyle(
+            fontSize = (24 * fontScale).sp,
+            lineHeight = (32 * fontScale).sp,
+            fontWeight = FontWeight.Normal,
+        ),
+        titleLarge = TextStyle(
+            fontSize = (22 * fontScale).sp,
+            lineHeight = (28 * fontScale).sp,
+            fontWeight = FontWeight.Normal,
+        ),
+        titleMedium = TextStyle(
+            fontSize = (16 * fontScale).sp,
+            lineHeight = (24 * fontScale).sp,
+            fontWeight = FontWeight.Medium,
+        ),
+        titleSmall = TextStyle(
+            fontSize = (14 * fontScale).sp,
+            lineHeight = (20 * fontScale).sp,
+            fontWeight = FontWeight.Medium,
+        ),
+        bodyLarge = TextStyle(
+            fontSize = (16 * fontScale).sp,
+            lineHeight = (24 * fontScale).sp,
+            fontWeight = FontWeight.Normal,
+        ),
+        bodyMedium = TextStyle(
+            fontSize = (14 * fontScale).sp,
+            lineHeight = (20 * fontScale).sp,
+            fontWeight = FontWeight.Normal,
+        ),
+        bodySmall = TextStyle(
+            fontSize = (12 * fontScale).sp,
+            lineHeight = (16 * fontScale).sp,
+            fontWeight = FontWeight.Normal,
+        ),
+        labelLarge = TextStyle(
+            fontSize = (14 * fontScale).sp,
+            lineHeight = (20 * fontScale).sp,
+            fontWeight = FontWeight.Medium,
+        ),
+        labelMedium = TextStyle(
+            fontSize = (12 * fontScale).sp,
+            lineHeight = (16 * fontScale).sp,
+            fontWeight = FontWeight.Medium,
+        ),
+        labelSmall = TextStyle(
+            fontSize = (11 * fontScale).sp,
+            lineHeight = (16 * fontScale).sp,
+            fontWeight = FontWeight.Medium,
+        ),
     )
 }

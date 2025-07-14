@@ -37,6 +37,7 @@ fun ProfileScreen(
     onHistoryClick: () -> Unit,
     onFavoriteClick: () -> Unit,
     onSettingsClick: () -> Unit = {},
+    onPersonalizationClick: () -> Unit = {}, // 新增个性化设置点击回调
     historyViewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory)
 ) {
     // 添加调试日志
@@ -189,9 +190,9 @@ fun ProfileScreen(
                 // 设置（预留功能）
                 ProfileMenuItem(
                     icon = Icons.Default.Settings,
-                    title = "设置",
-                    subtitle = "个性化设置",
-                    onClick = onSettingsClick
+                    title = "个性化设置",
+                    subtitle = "主题、字体等个性化设置",
+                    onClick = onPersonalizationClick
                 )
             }
         }

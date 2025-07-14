@@ -28,12 +28,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,6 +43,7 @@ import com.example.newsclient.data.model.News
 import com.example.newsclient.data.model.NewsCategory
 import com.example.newsclient.ui.NewsViewModel
 import com.example.newsclient.ui.UiState
+import com.example.newsclient.ui.theme.NewsClientTheme
 
 /**
  * 新闻列表主界面
@@ -99,7 +97,7 @@ fun NewsListScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5))
+            .background(MaterialTheme.colorScheme.background) // 使用主题背景色
     ) {
         // 搜索栏
         SearchBar(
@@ -176,20 +174,20 @@ private fun SearchBar(
 
             Text(
                 text = "搜索新闻、关键词...",
+                style = MaterialTheme.typography.bodyMedium, // 使用定义的宋体正文样式
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 16.sp,
                 modifier = Modifier.weight(1f)
             )
 
             // 添加搜索快捷提示
             Surface(
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
                     text = "搜索",
+                    style = MaterialTheme.typography.labelMedium, // 使用定义的标签样式
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
@@ -292,7 +290,7 @@ private fun CategoryChip(
                     modifier = Modifier
                         .size(8.dp)
                         .background(
-                            Color.White,
+                            MaterialTheme.colorScheme.onPrimary, // 使用主题色替代硬编码白色
                             CircleShape
                         )
                 )
@@ -324,7 +322,7 @@ private fun CategoryManageButton(
             .clickable { onClick() }
             .clip(RoundedCornerShape(16.dp)),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF00796B) // 深绿色
+            containerColor = MaterialTheme.colorScheme.secondaryContainer // 使用主题的secondary容器色
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -333,9 +331,9 @@ private fun CategoryManageButton(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Default.Settings, // 使用Material Icons的设置图标
+                imageVector = Icons.Default.Settings,
                 contentDescription = "管理分类",
-                tint = Color.White,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer, // 使用主题的对应文字色
                 modifier = Modifier.size(16.dp)
             )
 
@@ -343,7 +341,7 @@ private fun CategoryManageButton(
 
             Text(
                 text = "管理",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSecondaryContainer, // 使用主题的对应文字色
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -533,22 +531,12 @@ private fun NewsItem(
     isRead: Boolean = false,
     onClick: () -> Unit
 ) {
-    // 动画效果
-    val animatedAlpha by animateFloatAsState(
-        targetValue = if (isRead) 0.7f else 1f,
-        animationSpec = tween(300)
-    )
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
-            .graphicsLayer { alpha = animatedAlpha },
+            .clickable { onClick() },
         colors = CardDefaults.cardColors(
-            containerColor = if (isRead)
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            else
-                MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surface // 统一使用普通背景色，不区分已读状态
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         shape = RoundedCornerShape(16.dp)
@@ -556,22 +544,22 @@ private fun NewsItem(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(20.dp) // 增加内边距避免标题被遮挡
         ) {
-            // 新闻标题 - 使用黑体字体
+            // 新闻标题 - 已读时变为灰色，未读时保持正常颜色
             Text(
                 text = news.title,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.SansSerif, // 使用无衬线字体（接近黑体效果）
+                style = MaterialTheme.typography.titleMedium, // 使用定义的黑体标题样式
                 color = if (isRead)
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f) // 已读：灰色
                 else
-                    MaterialTheme.colorScheme.onSurface,
+                    MaterialTheme.colorScheme.onSurface, // 未读：正常颜色
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                lineHeight = 26.sp, // 稍微增加行高避免遮挡
-                modifier = Modifier.fillMaxWidth() // 确保文本占满宽度
+                lineHeight = 24.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp) // 增加底部间距
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -603,7 +591,10 @@ private fun NewsItem(
                         .fillMaxWidth()
                         .heightIn(max = 200.dp),
                     shape = RoundedCornerShape(12.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    )
                 ) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
@@ -632,19 +623,20 @@ private fun NewsItem(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // 新闻摘要优化
+            // 新闻摘要 - 使用雅黑字体和主题色彩
             Text(
                 text = news.content,
-                fontSize = 15.sp,
-                fontFamily = FontFamily.Serif, // 使用衬线字体（宋体效果）
+                style = MaterialTheme.typography.bodyMedium, // 使用定义的雅黑正文样式
                 color = if (isRead)
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) // 已读：稍微变淡
                 else
-                    MaterialTheme.colorScheme.onSurfaceVariant,
+                    MaterialTheme.colorScheme.onSurfaceVariant, // 未读：正常颜色
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
-                lineHeight = 22.sp, // 增加行高提升可读性
-                modifier = Modifier.fillMaxWidth() // 确保文本占满宽度
+                lineHeight = 22.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -657,16 +649,19 @@ private fun NewsItem(
             ) {
                 // 发布者信息
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f, fill = false)
                 ) {
                     Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        color = if (isRead)
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) // 已读：淡化图标
+                        else
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f), // 未读：正常
                         shape = CircleShape
                     ) {
                         Text(
                             text = news.publisher.take(1),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.padding(6.dp)
                         )
@@ -676,11 +671,11 @@ private fun NewsItem(
 
                     Text(
                         text = news.publisher,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.labelMedium,
                         color = if (isRead)
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) // 已读：变淡
                         else
-                            MaterialTheme.colorScheme.onSurfaceVariant,
+                            MaterialTheme.colorScheme.onSurfaceVariant, // 未读：正常
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -691,28 +686,23 @@ private fun NewsItem(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // 只在已读时显示已读标签，且样式更简洁
                     if (isRead) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "已读",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "已读",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
                     }
 
                     Text(
-                        text = formatPublishTime(news.publishTime),
-                        fontSize = 12.sp,
+                        text = news.publishTime,
+                        style = MaterialTheme.typography.labelSmall,
                         color = if (isRead)
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) // 已读：变淡
                         else
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f) // 未读：正常
                     )
                 }
             }
@@ -775,13 +765,14 @@ private fun LoadingMoreIndicator() {
         ) {
             CircularProgressIndicator(
                 modifier = Modifier.size(16.dp),
-                strokeWidth = 2.dp
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary // 使用主题色
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "加载更多...",
                 fontSize = 14.sp,
-                color = Color.Gray
+                color = MaterialTheme.colorScheme.onSurfaceVariant // 使用主题色
             )
         }
     }
@@ -801,7 +792,7 @@ private fun NoMoreDataIndicator() {
         Text(
             text = "— 已经到底了 —",
             fontSize = 14.sp,
-            color = Color.Gray,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, // 使用主题色
             modifier = Modifier.padding(vertical = 8.dp)
         )
     }

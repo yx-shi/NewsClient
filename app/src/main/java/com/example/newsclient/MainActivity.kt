@@ -32,6 +32,7 @@ import com.example.newsclient.ui.screen.ProfileScreen
 import com.example.newsclient.ui.screen.HistoryScreen
 import com.example.newsclient.ui.screen.FavoriteScreen
 import com.example.newsclient.ui.screen.TestScreen
+import com.example.newsclient.ui.screen.PersonalizationScreenWrapper
 import com.example.newsclient.ui.theme.NewsClientTheme
 import com.example.newsclient.ui.viewmodel.NewsDetailViewModel
 
@@ -151,6 +152,10 @@ fun NewsApp() {
                     onSettingsClick = {
                         android.util.Log.d("MainActivity", "⚙️ 设置被点击")
                         // 预留设置功能
+                    },
+                    onPersonalizationClick = {
+                        android.util.Log.d("MainActivity", "🎨 个性化设置被点击")
+                        navController.navigate("personalization")
                     }
                 )
             }
@@ -240,6 +245,15 @@ fun NewsApp() {
             // 测试界面 - 用于调试API
             composable("test") {
                 TestScreen()
+            }
+
+            // 个性化设置页面
+            composable("personalization") {
+                PersonalizationScreenWrapper(
+                    onBackClick = {
+                        navController.popBackStack()
+                    }
+                )
             }
         }
     }

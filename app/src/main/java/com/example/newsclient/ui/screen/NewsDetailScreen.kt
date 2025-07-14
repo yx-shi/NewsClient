@@ -55,16 +55,15 @@ fun NewsDetailScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5))
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // 顶部导航栏
         TopAppBar(
             title = {
                 Text(
                     text = "新闻详情",
-                    color = Color.Black,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             },
             navigationIcon = {
@@ -72,12 +71,12 @@ fun NewsDetailScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "返回",
-                        tint = Color.Black
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color.White
+                containerColor = MaterialTheme.colorScheme.surface
             )
         )
 
@@ -92,10 +91,9 @@ fun NewsDetailScreen(
             // 新闻标题
             Text(
                 text = news.title,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                lineHeight = 32.sp
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold
             )
 
             // 新闻元信息
@@ -107,13 +105,13 @@ fun NewsDetailScreen(
                 Column {
                     Text(
                         text = "来源：${news.publisher}",
-                        fontSize = 14.sp,
-                        color = Color.Gray
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "时间：${news.publishTime}",
-                        fontSize = 14.sp,
-                        color = Color.Gray
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -124,7 +122,7 @@ fun NewsDetailScreen(
                 ) {
                     Text(
                         text = news.category,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
@@ -140,7 +138,7 @@ fun NewsDetailScreen(
             // 新闻正文
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
@@ -148,17 +146,16 @@ fun NewsDetailScreen(
                 ) {
                     Text(
                         text = "正文",
-                        fontSize = 18.sp,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
                     Text(
                         text = news.content,
-                        fontSize = 16.sp,
-                        color = Color.Black,
-                        lineHeight = 24.sp,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Justify
                     )
                 }
@@ -220,33 +217,6 @@ private fun NewsMediaContent(
 }
 
 /**
- * 新闻图片组件
- */
-@Composable
-private fun NewsImage(imageUrl: String, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(parseImageUrl(imageUrl))
-                .crossfade(true)
-                .build(),
-            contentDescription = "新闻图片",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 200.dp, max = 300.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.Gray.copy(alpha = 0.1f)),
-            error = painterResource(id = android.R.drawable.ic_menu_gallery)
-        )
-    }
-}
-
-/**
  * AI摘要功能组件
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -269,7 +239,7 @@ private fun AISummarySection(
 
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -282,9 +252,9 @@ private fun AISummarySection(
             ) {
                 Text(
                     text = "🤖 AI智能摘要",
-                    fontSize = 18.sp,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 // 状态指示器
@@ -292,7 +262,8 @@ private fun AISummarySection(
                     is com.example.newsclient.ui.viewmodel.SummaryState.Loading -> {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                     is com.example.newsclient.ui.viewmodel.SummaryState.Success -> {
@@ -302,11 +273,11 @@ private fun AISummarySection(
                         ) {
                             Text(
                                 text = "📦",
-                                fontSize = 14.sp
+                                style = MaterialTheme.typography.bodySmall
                             )
                             Text(
                                 text = "已缓存",
-                                fontSize = 12.sp,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -314,7 +285,7 @@ private fun AISummarySection(
                     is com.example.newsclient.ui.viewmodel.SummaryState.Error -> {
                         Text(
                             text = "❌",
-                            fontSize = 16.sp
+                            style = MaterialTheme.typography.bodyMedium
                         )
                     }
                     else -> {}
@@ -333,7 +304,7 @@ private fun AISummarySection(
                     ) {
                         Text(
                             text = "🌟 使用AI大模型为您生成新闻摘要\n\n点击下方按钮开始生成精准摘要",
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(16.dp)
@@ -353,14 +324,14 @@ private fun AISummarySection(
                         ) {
                             Text(
                                 text = "⚡ 正在生成摘要...",
-                                fontSize = 14.sp,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "AI正在分析新闻内容，请稍候",
-                                fontSize = 12.sp,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
@@ -378,9 +349,8 @@ private fun AISummarySection(
                         ) {
                             Text(
                                 text = summaryState.summary,
-                                fontSize = 15.sp,
-                                color = Color.Black,
-                                lineHeight = 22.sp,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.Justify
                             )
 
@@ -392,7 +362,7 @@ private fun AISummarySection(
                             ) {
                                 Text(
                                     text = "💾 已保存到本地",
-                                    fontSize = 11.sp,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                                 )
@@ -412,14 +382,14 @@ private fun AISummarySection(
                         ) {
                             Text(
                                 text = "❌ 摘要生成失败",
-                                fontSize = 14.sp,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.error,
                                 fontWeight = FontWeight.Medium
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = summaryState.message,
-                                fontSize = 12.sp,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
                         }
@@ -445,11 +415,14 @@ private fun AISummarySection(
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = Color.White
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text(text = "🔄 重新生成")
+                            Text(
+                                text = "🔄 重新生成",
+                                style = MaterialTheme.typography.labelMedium
+                            )
                         }
 
                         // 删除摘要按钮
@@ -464,7 +437,10 @@ private fun AISummarySection(
                             ),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text(text = "🗑️ 删除")
+                            Text(
+                                text = "🗑️ 删除",
+                                style = MaterialTheme.typography.labelMedium
+                            )
                         }
                     }
                 }
@@ -484,7 +460,7 @@ private fun AISummarySection(
                             enabled = summaryState !is com.example.newsclient.ui.viewmodel.SummaryState.Loading,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = Color.White
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             shape = RoundedCornerShape(8.dp)
                         ) {
@@ -492,7 +468,8 @@ private fun AISummarySection(
                                 text = when (summaryState) {
                                     is com.example.newsclient.ui.viewmodel.SummaryState.Loading -> "生成中..."
                                     else -> "✨ 生成摘要"
-                                }
+                                },
+                                style = MaterialTheme.typography.labelMedium
                             )
                         }
 
@@ -507,7 +484,10 @@ private fun AISummarySection(
                                 ),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text(text = "🔄 重置")
+                                Text(
+                                    text = "🔄 重置",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
                             }
                         }
                     }
@@ -528,7 +508,7 @@ private fun KeywordTagsSection(
 ) {
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -536,9 +516,9 @@ private fun KeywordTagsSection(
         ) {
             Text(
                 text = "关键词",
-                fontSize = 18.sp,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
@@ -555,7 +535,7 @@ private fun KeywordTagsSection(
                     ) {
                         Text(
                             text = keyword.word,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
@@ -583,7 +563,7 @@ private fun FavoriteButton(
 
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -605,7 +585,7 @@ private fun FavoriteButton(
             Icon(
                 imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                 contentDescription = if (isFavorite) "取消收藏" else "收藏",
-                tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.primary,
+                tint = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp)
             )
 
@@ -613,11 +593,38 @@ private fun FavoriteButton(
 
             Text(
                 text = if (isFavorite) "已收藏" else "收藏",
-                fontSize = 16.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                color = if (isFavorite) Color.Red else MaterialTheme.colorScheme.primary
+                color = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
             )
         }
+    }
+}
+
+/**
+ * 新闻图片组件
+ */
+@Composable
+private fun NewsImage(imageUrl: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(parseImageUrl(imageUrl))
+                .crossfade(true)
+                .build(),
+            contentDescription = "新闻图片",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 200.dp, max = 300.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)),
+            error = painterResource(id = android.R.drawable.ic_menu_gallery)
+        )
     }
 }
 

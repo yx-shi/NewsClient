@@ -453,7 +453,7 @@ private fun ResultSearchBar(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = if (searchText.isNotEmpty()) searchText else "点击重新搜索",
-                        fontSize = 16.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = if (searchText.isNotEmpty()) {
                             MaterialTheme.colorScheme.onSurface
                         } else {
@@ -465,7 +465,7 @@ private fun ResultSearchBar(
                     if (selectedYear != null) {
                         Text(
                             text = formatDateDisplay(selectedYear, selectedMonth, selectedDay),
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium
                         )
@@ -527,6 +527,7 @@ private fun DateFilterCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = formatDateDisplay(selectedYear, selectedMonth, selectedDay),
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
@@ -536,6 +537,7 @@ private fun DateFilterCard(
                 Icon(
                     imageVector = Icons.Default.Clear,
                     contentDescription = "清除日期",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -558,6 +560,7 @@ private fun CategoryCard(category: NewsCategory) {
     ) {
         Text(
             text = "在「${category.value}」分类中搜索",
+            style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(12.dp),
             color = MaterialTheme.colorScheme.onSecondaryContainer
         )
@@ -577,20 +580,22 @@ private fun WelcomeContent() {
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(24.dp)
         ) {
-            Text(text = "🔍", fontSize = 48.sp)
+            Text(
+                text = "🔍",
+                style = MaterialTheme.typography.displayMedium
+            )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "智能搜索",
-                fontSize = 20.sp,
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "• 输入关键词搜索新闻内容\n• 点击日历图标选择时间范围\n• 支持关键词+时间组合搜索",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 20.sp
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -612,7 +617,7 @@ private fun SearchResultList(
         item {
             Text(
                 text = "找到 ${searchResults.size} 条相关新闻",
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
@@ -634,9 +639,15 @@ private fun LoadingContent() {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator()
+            CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.primary
+            )
             Spacer(modifier = Modifier.height(16.dp))
-            Text(text = "正在搜索...", fontSize = 16.sp)
+            Text(
+                text = "正在搜索...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }
@@ -651,12 +662,16 @@ private fun EmptyResultContent() {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "😔", fontSize = 48.sp)
+            Text(
+                text = "😔",
+                style = MaterialTheme.typography.displayMedium
+            )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "没有找到相关新闻",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -672,18 +687,21 @@ private fun ErrorContent(message: String) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "❌", fontSize = 48.sp)
+            Text(
+                text = "❌",
+                style = MaterialTheme.typography.displayMedium
+            )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "搜索失败",
-                fontSize = 18.sp,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.error
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = message,
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -723,7 +741,7 @@ private fun NewsCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -734,14 +752,14 @@ private fun NewsCard(
             // 标题
             Text(
                 text = news.title,
-                fontSize = 16.sp,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 图片
             val imageUrl = processImageUrl(news.imageUrl)
@@ -758,19 +776,19 @@ private fun NewsCard(
                         .height(160.dp)
                         .clip(RoundedCornerShape(8.dp))
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
             // 内容
             Text(
                 text = news.content,
-                fontSize = 14.sp,
-                color = Color.Gray,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 发布信息
             Row(
@@ -779,13 +797,13 @@ private fun NewsCard(
             ) {
                 Text(
                     text = news.publisher,
-                    fontSize = 12.sp,
-                    color = Color.Gray
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = formatTime(news.publishTime),
-                    fontSize = 12.sp,
-                    color = Color.Gray
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

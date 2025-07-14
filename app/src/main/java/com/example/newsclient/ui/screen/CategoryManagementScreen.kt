@@ -54,14 +54,24 @@ fun CategoryManagementScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5))
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // 顶部导航栏
         TopAppBar(
-            title = { Text("分类管理") },
+            title = {
+                Text(
+                    text = "分类管理",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
             navigationIcon = {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                    Icon(
+                        Icons.Default.ArrowBack,
+                        contentDescription = "返回",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             },
             actions = {
@@ -70,9 +80,19 @@ fun CategoryManagementScreen(
                     onClick = { showAddDialog = true },
                     enabled = availableCategories.isNotEmpty()
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "添加分类")
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "添加分类",
+                        tint = if (availableCategories.isNotEmpty())
+                            MaterialTheme.colorScheme.onSurface
+                        else
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
                 }
-            }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
         )
 
         // 说明文本
@@ -80,23 +100,22 @@ fun CategoryManagementScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
                     text = "分类管理",
-                    fontSize = 18.sp,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "• 点击右上角「+」添加新分类\n• 点击分类右侧的删除按钮移除分类\n• 至少保留一个分类",
-                    fontSize = 14.sp,
-                    color = Color.Gray,
-                    lineHeight = 20.sp
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -107,7 +126,7 @@ fun CategoryManagementScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .weight(1f),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp)
@@ -119,13 +138,14 @@ fun CategoryManagementScreen(
                 ) {
                     Text(
                         text = "当前分类",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = "${selectedCategories.size}/10",
-                        fontSize = 14.sp,
-                        color = Color.Gray
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -136,8 +156,8 @@ fun CategoryManagementScreen(
                         text = "请添加至少一个分类",
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center,
-                        color = Color.Gray,
-                        fontSize = 14.sp
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     LazyColumn(
@@ -178,7 +198,10 @@ fun CategoryManagementScreen(
                 },
                 modifier = Modifier.weight(1f)
             ) {
-                Text("重置默认")
+                Text(
+                    text = "重置默认",
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
 
             // 完成按钮
@@ -186,7 +209,10 @@ fun CategoryManagementScreen(
                 onClick = onBackClick,
                 modifier = Modifier.weight(1f)
             ) {
-                Text("完成")
+                Text(
+                    text = "完成",
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
         }
     }
@@ -285,7 +311,7 @@ private fun CategoryItemWithAnimation(
             .offset(x = deleteOffsetX.dp)
             .scale(addScale)
             .graphicsLayer(alpha = deleteAlpha * addAlpha),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
@@ -297,8 +323,9 @@ private fun CategoryItemWithAnimation(
         ) {
             Text(
                 text = category.value,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             if (showDeleteButton) {
@@ -325,7 +352,7 @@ private fun CategoryItemWithAnimation(
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "删除分类",
-                        tint = Color.Red,
+                        tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -356,7 +383,7 @@ private fun AddCategoryDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp)),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
                 modifier = Modifier.padding(24.dp)
@@ -368,14 +395,19 @@ private fun AddCategoryDialog(
                 ) {
                     Text(
                         text = "添加分类",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     IconButton(
                         onClick = onDismiss,
                         modifier = Modifier.size(24.dp)
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = "关闭")
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "关闭",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
 
@@ -386,7 +418,8 @@ private fun AddCategoryDialog(
                         text = "所有分类都已添加",
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center,
-                        color = Color.Gray
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     LazyColumn(
@@ -398,12 +431,13 @@ private fun AddCategoryDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { onCategorySelected(category) },
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA))
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                             ) {
                                 Text(
                                     text = category.value,
                                     modifier = Modifier.padding(16.dp),
-                                    fontSize = 16.sp
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
