@@ -1,6 +1,10 @@
 package com.example.newsclient.ui.screen
 
 import android.util.Log
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,8 +12,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -18,14 +24,18 @@ import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -140,9 +150,10 @@ private fun SearchBar(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(28.dp)
     ) {
         Row(
             modifier = Modifier
@@ -151,24 +162,37 @@ private fun SearchBar(
                     Log.d("SearchBar", "🔍 搜索栏被点击 - 准备导航")
                     onSearchClick()
                 }
-                .padding(16.dp),
+                .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = "搜索",
-                tint = Color.Gray,
-                modifier = Modifier.size(24.dp)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
             )
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Text(
-                text = "搜索新闻...",
-                color = Color.Gray,
+                text = "搜索新闻、关键词...",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 16.sp,
                 modifier = Modifier.weight(1f)
             )
+
+            // 添加搜索快捷提示
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "搜索",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
         }
     }
 }
@@ -223,6 +247,17 @@ private fun CategoryChip(
         Log.d("CategoryChip", "🏷️ 分类标签状态更新: $categoryName, 选中: $isSelected")
     }
 
+    // 动画状态
+    val animatedElevation by animateDpAsState(
+        targetValue = if (isSelected) 8.dp else 2.dp,
+        animationSpec = tween(300)
+    )
+
+    val animatedScale by animateFloatAsState(
+        targetValue = if (isSelected) 1.05f else 1f,
+        animationSpec = tween(200)
+    )
+
     Card(
         modifier = Modifier
             .clickable {
@@ -230,22 +265,50 @@ private fun CategoryChip(
                 onClick()
                 Log.d("CategoryChip", "✅ 分类标签点击回调执行完成: $categoryName")
             }
-            .clip(RoundedCornerShape(16.dp)),
+            .clip(RoundedCornerShape(20.dp))
+            .graphicsLayer {
+                scaleX = animatedScale
+                scaleY = animatedScale
+            },
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected)
                 MaterialTheme.colorScheme.primary
             else
-                Color.White
+                MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Text(
-            text = categoryName,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            color = if (isSelected) Color.White else Color.Black,
-            fontSize = 14.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+        elevation = CardDefaults.cardElevation(defaultElevation = animatedElevation),
+        border = if (isSelected) null else BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
         )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 选中状态指示器
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            Color.White,
+                            CircleShape
+                        )
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+
+            Text(
+                text = categoryName,
+                color = if (isSelected)
+                    MaterialTheme.colorScheme.onPrimary
+                else
+                    MaterialTheme.colorScheme.onSurface,
+                fontSize = 14.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+            )
+        }
     }
 }
 
@@ -403,8 +466,8 @@ private fun NewsListContent(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp), // 增加间距避免遮挡
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp) // 优化边距
                 ) {
                     items(
                         items = newsListState.data.news,
@@ -470,39 +533,55 @@ private fun NewsItem(
     isRead: Boolean = false,
     onClick: () -> Unit
 ) {
+    // 动画效果
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isRead) 0.7f else 1f,
+        animationSpec = tween(300)
+    )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .clickable { onClick() }
+            .graphicsLayer { alpha = animatedAlpha },
         colors = CardDefaults.cardColors(
-            containerColor = if (isRead) Color(0xFFF5F5F5) else Color.White
+            containerColor = if (isRead)
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            else
+                MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)
+                .padding(16.dp)
         ) {
-            // 新闻标题
+            // 新闻标题 - 使用黑体字体
             Text(
                 text = news.title,
-                fontSize = 16.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (isRead) Color.Gray else Color.Black,
+                fontFamily = FontFamily.SansSerif, // 使用无衬线字体（接近黑体效果）
+                color = if (isRead)
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                else
+                    MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 26.sp, // 稍微增加行高避免遮挡
+                modifier = Modifier.fillMaxWidth() // 确保文本占满宽度
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // 新闻图片（只有在有有效图片URL时才显示）
+            // 新闻图片优化
             val processedImageUrl = news.imageUrl.let { url ->
                 when {
                     url.isBlank() -> ""
                     url == "[]" -> ""
                     url.startsWith("[") && url.endsWith("]") -> {
-                        // 处理可能的数组格式，提取第一张有效图片
                         url.substring(1, url.length - 1)
                             .split(",")
                             .asSequence()
@@ -516,90 +595,124 @@ private fun NewsItem(
             }
 
             if (processedImageUrl.isNotEmpty()) {
-                // 智能图片加载：先尝试HTTPS，失败后自动回退到HTTP
                 var finalImageUrl by remember { mutableStateOf(processedImageUrl) }
                 var hasTriedFallback by remember { mutableStateOf(false) }
 
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(finalImageUrl)
-                        .crossfade(true)
-                        .listener(
-                            onError = { _, result ->
-                                android.util.Log.w("NewsItem", "图片加载失败: $finalImageUrl, 错误: ${result.throwable.message}")
-
-                                // 如果是HTTPS失败且还没尝试过HTTP回退，则尝试HTTP
-                                if (!hasTriedFallback && finalImageUrl.startsWith("https://")) {
-                                    val httpUrl = finalImageUrl.replaceFirst("https://", "http://")
-                                    android.util.Log.i("NewsItem", "尝试HTTP回退: $httpUrl")
-                                    finalImageUrl = httpUrl
-                                    hasTriedFallback = true
-                                }
-                            }
-                        )
-                        .build(),
-                    contentDescription = "新闻图片",
-                    contentScale = ContentScale.Fit,
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 200.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .let { modifier ->
-                            if (isRead) {
-                                modifier.background(Color.Gray.copy(alpha = 0.1f))
-                            } else {
-                                modifier
-                            }
-                        }
-                )
+                        .heightIn(max = 200.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(finalImageUrl)
+                            .crossfade(true)
+                            .listener(
+                                onError = { _, result ->
+                                    android.util.Log.w("NewsItem", "图片加载失败: $finalImageUrl, 错误: ${result.throwable.message}")
+                                    if (!hasTriedFallback && finalImageUrl.startsWith("https://")) {
+                                        val httpUrl = finalImageUrl.replaceFirst("https://", "http://")
+                                        android.util.Log.i("NewsItem", "尝试HTTP回退: $httpUrl")
+                                        finalImageUrl = httpUrl
+                                        hasTriedFallback = true
+                                    }
+                                }
+                            )
+                            .build(),
+                        contentDescription = "新闻图片",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 120.dp, max = 200.dp)
+                    )
+                }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // 新闻摘要
+            // 新闻摘要优化
             Text(
                 text = news.content,
-                fontSize = 14.sp,
-                color = if (isRead) Color.Gray.copy(alpha = 0.8f) else Color.Gray,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                fontSize = 15.sp,
+                fontFamily = FontFamily.Serif, // 使用衬线字体（宋体效果）
+                color = if (isRead)
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 22.sp, // 增加行高提升可读性
+                modifier = Modifier.fillMaxWidth() // 确保文本占满宽度
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // 新闻元信息
+            // 新闻元信息优化
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = news.publisher,
-                    fontSize = 12.sp,
-                    color = if (isRead) Color.Gray.copy(alpha = 0.7f) else Color.Gray
-                )
+                // 发布者信息
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        shape = CircleShape
+                    ) {
+                        Text(
+                            text = news.publisher.take(1),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(6.dp)
+                        )
+                    }
 
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(
+                        text = news.publisher,
+                        fontSize = 13.sp,
+                        color = if (isRead)
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                }
+
+                // 时间和已读状态
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (isRead) {
-                        Text(
-                            text = "已读",
-                            fontSize = 10.sp,
-                            color = Color.Gray,
-                            modifier = Modifier
-                                .background(
-                                    Color.Gray.copy(alpha = 0.2f),
-                                    RoundedCornerShape(4.dp)
-                                )
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
-                        )
+                        Surface(
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "已读",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                         Spacer(modifier = Modifier.width(8.dp))
                     }
 
                     Text(
                         text = formatPublishTime(news.publishTime),
                         fontSize = 12.sp,
-                        color = if (isRead) Color.Gray.copy(alpha = 0.7f) else Color.Gray
+                        color = if (isRead)
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -619,11 +732,28 @@ private fun LoadingContent() {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            CircularProgressIndicator()
-            Spacer(modifier = Modifier.height(16.dp))
+            // 使用更现代的加载动画
+            CircularProgressIndicator(
+                modifier = Modifier.size(40.dp),
+                strokeWidth = 4.dp,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
             Text(
                 text = "正在加载新闻...",
-                color = Color.Gray
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "为您精选最新资讯",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                fontSize = 14.sp
             )
         }
     }
@@ -690,16 +820,66 @@ private fun ErrorContent(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
         ) {
+            // 错误状态图标
+            Surface(
+                modifier = Modifier.size(80.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "!",
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "加载失败",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Medium
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Text(
                 text = message,
-                color = Color.Red,
-                fontSize = 16.sp
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onRetry) {
-                Text("重试")
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = onRetry,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "重新加载",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
     }
@@ -715,19 +895,63 @@ private fun EmptyContent() {
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
         ) {
+            // 添加一个空状态图标
+            Surface(
+                modifier = Modifier.size(80.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             Text(
                 text = "暂无新闻",
-                color = Color.Gray,
-                fontSize = 16.sp
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Medium
             )
+
             Spacer(modifier = Modifier.height(8.dp))
+
             Text(
-                text = "下拉刷新试试",
-                color = Color.Gray,
-                fontSize = 14.sp
+                text = "下拉刷新获取最新资讯",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 添加一个提示卡片
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "💡 小提示：可以尝试切换不同的新闻分类或调整网络连接",
+                    modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }
