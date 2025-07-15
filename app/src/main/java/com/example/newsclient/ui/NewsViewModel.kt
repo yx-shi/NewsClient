@@ -175,6 +175,10 @@ class NewsViewModel(
                     currentPage = 1
                 } else {
                     _newsListState.value = _newsListState.value.copy(isLoadingMore = true)
+                    // 添加调试日志
+                    Log.d("NewsViewModel", "🔄 设置 isLoadingMore = true")
+                    // 确保UI能够看到加载状态，添加短暂延迟
+                    kotlinx.coroutines.delay(100) // 100ms延迟确保UI能看到Loading状态
                 }
 
                 // 调用Repository获取新闻数据
@@ -198,6 +202,11 @@ class NewsViewModel(
                     hasMoreData = result.hasMoreData,
                     readNewsIds = _readNewsIds.value
                 )
+
+                // 添加调试日志
+                if (!refresh) {
+                    Log.d("NewsViewModel", "✅ 加载更多完成，isLoadingMore = false")
+                }
 
                 // 如果成功加载，页码+1
                 if (!refresh) {

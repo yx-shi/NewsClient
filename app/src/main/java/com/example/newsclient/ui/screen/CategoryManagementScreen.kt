@@ -182,11 +182,12 @@ fun CategoryManagementScreen(
             }
         }
 
-        // 底部按钮
+        // 底部按钮 - 添加系统导航栏适配
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(16.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars), // 添加系统导航栏适配
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // 重置按钮

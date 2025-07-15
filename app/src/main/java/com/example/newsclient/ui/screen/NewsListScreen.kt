@@ -43,7 +43,7 @@ import com.example.newsclient.data.model.News
 import com.example.newsclient.data.model.NewsCategory
 import com.example.newsclient.ui.NewsViewModel
 import com.example.newsclient.ui.UiState
-import com.example.newsclient.ui.theme.NewsClientTheme
+import kotlinx.coroutines.delay
 
 /**
  * 新闻列表主界面
@@ -368,7 +368,7 @@ private fun NewsListContent(
         onRefresh = onRefresh
     )
 
-    // 上拉加载更多逻辑 - 监听滚动到底部并自动触发加载
+    // 上拉加载更多逻辑 - 监听滚动到底部
     LaunchedEffect(listState) {
         snapshotFlow {
             val layoutInfo = listState.layoutInfo
@@ -383,8 +383,10 @@ private fun NewsListContent(
         }.collect { scrollInfo ->
             Log.d("ScrollDebug", "滚动状态: 总数=${scrollInfo.totalItems}, 最后可见=${scrollInfo.lastVisibleItemIndex}, 是否到底=${scrollInfo.isAtBottom}")
 
-            // 当滚动到底部时自动触发加载更多
+            // 当滚动到底部时等待一小段时间，然后检查是否需要自动加载更多
             if (scrollInfo.isAtBottom && scrollInfo.totalItems > 0) {
+                delay(200) // 等待200ms，避免过于频繁的触发
+
                 if (newsListState is UiState.Success) {
                     val canLoadMore = !newsListState.data.isLoadingMore && newsListState.data.hasMoreData
 
@@ -397,6 +399,8 @@ private fun NewsListContent(
 
                     if (canLoadMore) {
                         Log.d("LoadMoreDebug", "🚀 自动触发加载更多")
+                        // 立即触发加载更多，这会更新状态为 isLoadingMore = true
+                        // 从而显示加载特效，然后再实际加载数据
                         onLoadMore()
                     } else {
                         Log.d("LoadMoreDebug", "❌ 无法加载更多 - 可能正在加载或没有更多数据")
@@ -407,17 +411,48 @@ private fun NewsListContent(
     }
 
     // 计算当前状态以显示底部指示器
-    val bottomIndicatorState by remember {
+    val bottomIndicatorState by remember(newsListState) {
         derivedStateOf {
+            Log.d("BottomIndicatorDebug", "=== 底部指示器状态计算开始 ===")
+            Log.d("BottomIndicatorDebug", "newsListState类型: ${newsListState::class.simpleName}")
+
             if (newsListState is UiState.Success) {
-                when {
-                    newsListState.data.isLoadingMore -> BottomIndicatorState.Loading
-                    !newsListState.data.hasMoreData && newsListState.data.news.isNotEmpty() -> BottomIndicatorState.NoMore
-                    else -> BottomIndicatorState.Hidden
+                Log.d("BottomIndicatorDebug", "newsListState是Success类型")
+                Log.d("BottomIndicatorDebug", "isLoadingMore: ${newsListState.data.isLoadingMore}")
+                Log.d("BottomIndicatorDebug", "hasMoreData: ${newsListState.data.hasMoreData}")
+                Log.d("BottomIndicatorDebug", "新闻数量: ${newsListState.data.news.size}")
+
+                val state = when {
+                    newsListState.data.isLoadingMore -> {
+                        Log.d("BottomIndicatorDebug", "✅ 条件匹配: isLoadingMore = true")
+                        BottomIndicatorState.Loading
+                    }
+                    !newsListState.data.hasMoreData && newsListState.data.news.isNotEmpty() -> {
+                        Log.d("BottomIndicatorDebug", "✅ 条件匹配: 没有更多数据且新闻不为空")
+                        BottomIndicatorState.NoMore
+                    }
+                    else -> {
+                        Log.d("BottomIndicatorDebug", "✅ 条件匹配: 默认隐藏状态")
+                        BottomIndicatorState.Hidden
+                    }
                 }
+
+                Log.d("BottomIndicatorDebug", "计算得到的状态: $state")
+                state
             } else {
+                Log.d("BottomIndicatorDebug", "newsListState不是Success类型，返回Hidden")
                 BottomIndicatorState.Hidden
             }
+        }
+    }
+
+    // 添加额外的状态监听来确保UI能够响应状态变化
+    LaunchedEffect(newsListState) {
+        if (newsListState is UiState.Success) {
+            Log.d("BottomIndicatorDebug", "👁️ LaunchedEffect 监听到状态变化")
+            Log.d("BottomIndicatorDebug", "   isLoadingMore: ${newsListState.data.isLoadingMore}")
+            Log.d("BottomIndicatorDebug", "   hasMoreData: ${newsListState.data.hasMoreData}")
+            Log.d("BottomIndicatorDebug", "   新闻数量: ${newsListState.data.news.size}")
         }
     }
 
@@ -501,8 +536,12 @@ private data class ScrollInfo(
  */
 @Composable
 private fun BottomIndicator(state: BottomIndicatorState) {
+    Log.d("BottomIndicatorRender", "=== BottomIndicator 渲染 ===")
+    Log.d("BottomIndicatorRender", "接收到的状态: $state")
+
     when (state) {
         BottomIndicatorState.Loading -> {
+            Log.d("BottomIndicatorRender", "✅ 渲染 Loading 状态")
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -527,6 +566,7 @@ private fun BottomIndicator(state: BottomIndicatorState) {
             }
         }
         BottomIndicatorState.NoMore -> {
+            Log.d("BottomIndicatorRender", "✅ 渲染 NoMore 状态")
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -551,6 +591,7 @@ private fun BottomIndicator(state: BottomIndicatorState) {
             }
         }
         BottomIndicatorState.Hidden -> {
+            Log.d("BottomIndicatorRender", "✅ 渲染 Hidden 状态")
             // 给底部留一些空间
             Spacer(modifier = Modifier.height(32.dp))
         }
