@@ -20,8 +20,9 @@ fun PersonalizationScreenWrapper(
     val application = context.applicationContext as NewsApplication
     val userPreferences = application.userPreferences
 
-    // 监听用户设置的变化
-    val userSettings by userPreferences.getUserSettingsFlow().collectAsState(initial = UserSettings())
+    // 监听用户设置的变化 - 使用remember获取初始值
+    val initialSettings = remember { userPreferences.getUserSettings() }
+    val userSettings by userPreferences.getUserSettingsFlow().collectAsState(initial = initialSettings)
 
     // 确保初始状态正确
     LaunchedEffect(Unit) {

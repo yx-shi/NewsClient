@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -273,8 +274,9 @@ fun NewsClientTheme(
     val application = context.applicationContext as NewsApplication
     val userPreferences = application.userPreferences
 
-    // 监听用户设置的变化
-    val userSettings by userPreferences.getUserSettingsFlow().collectAsState(initial = UserSettings())
+    // 监听用户设置的变化 - 使用remember获取初始值
+    val initialSettings = remember { userPreferences.getUserSettings() }
+    val userSettings by userPreferences.getUserSettingsFlow().collectAsState(initial = initialSettings)
 
     // 使用用户设置的主题模式，如果没有设置则使用系统默认
     val effectiveDarkTheme = userSettings.isDarkTheme

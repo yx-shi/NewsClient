@@ -761,21 +761,60 @@ private fun NewsCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 图片
-            val imageUrl = processImageUrl(news.imageUrl)
-            if (imageUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(imageUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "新闻图片",
-                    contentScale = ContentScale.Crop,
+            // 图片 - 使用与NewsListScreen相同的完整处理逻辑
+            val processedImageUrl = news.imageUrl.let { url ->
+                when {
+                    url.isBlank() -> ""
+                    url == "[]" -> ""
+                    url.startsWith("[") && url.endsWith("]") -> {
+                        url.substring(1, url.length - 1)
+                            .split(",")
+                            .asSequence()
+                            .map { it.trim().removePrefix("\"").removeSuffix("\"") }
+                            .filter { it.isNotEmpty() && (it.startsWith("http://") || it.startsWith("https://")) }
+                            .firstOrNull() ?: ""
+                    }
+                    url.startsWith("http://") || url.startsWith("https://") -> url
+                    else -> ""
+                }
+            }
+
+            if (processedImageUrl.isNotEmpty()) {
+                var finalImageUrl by remember { mutableStateOf(processedImageUrl) }
+                var hasTriedFallback by remember { mutableStateOf(false) }
+
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(160.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                )
+                        .height(160.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    )
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(finalImageUrl)
+                            .crossfade(true)
+                            .listener(
+                                onError = { _, result ->
+                                    android.util.Log.w("SearchNewsCard", "图片加载失败: $finalImageUrl, 错误: ${result.throwable.message}")
+                                    if (!hasTriedFallback && finalImageUrl.startsWith("https://")) {
+                                        val httpUrl = finalImageUrl.replaceFirst("https://", "http://")
+                                        android.util.Log.i("SearchNewsCard", "尝试HTTP回退: $httpUrl")
+                                        finalImageUrl = httpUrl
+                                        hasTriedFallback = true
+                                    }
+                                }
+                            )
+                            .build(),
+                        contentDescription = "新闻图片",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
@@ -856,21 +895,6 @@ private fun formatDateDisplay(year: Int?, month: Int?, day: Int?): String {
         month != null -> "${year}年${month}月"
         year != null -> "${year}年"
         else -> "日期筛选"
-    }
-}
-
-private fun processImageUrl(imageUrl: String): String {
-    return when {
-        imageUrl.isBlank() -> ""
-        imageUrl == "[]" -> ""
-        imageUrl.startsWith("[") && imageUrl.endsWith("]") -> {
-            imageUrl.substring(1, imageUrl.length - 1)
-                .split(",")
-                .map { it.trim().removePrefix("\"").removeSuffix("\"") }
-                .firstOrNull { it.startsWith("http") } ?: ""
-        }
-        imageUrl.startsWith("http") -> imageUrl
-        else -> ""
     }
 }
 

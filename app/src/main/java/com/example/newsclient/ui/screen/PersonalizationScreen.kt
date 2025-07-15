@@ -494,7 +494,7 @@ fun FontSizeSlider(
     currentScale: Float,
     onScaleChange: (Float) -> Unit
 ) {
-    val levels = FontSizeLevel.values()
+    val levels = FontSizeLevel.entries
     val currentIndex = levels.indexOf(FontSizeLevel.fromScale(currentScale))
 
     Row(
@@ -636,7 +636,7 @@ fun GenderDialog(
         },
         text = {
             Column {
-                Gender.values().forEach { gender ->
+                Gender.entries.forEach { gender ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

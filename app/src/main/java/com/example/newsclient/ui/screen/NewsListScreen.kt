@@ -123,7 +123,6 @@ fun NewsListScreen(
         // 新闻列表
         NewsListContent(
             newsListState = when {
-                newsListState.isRefreshing -> UiState.Loading
                 newsListState.news.isEmpty() && !newsListState.isRefreshing && !newsListState.isLoadingMore -> UiState.Empty
                 else -> UiState.Success(newsListState)
             },
@@ -369,82 +368,55 @@ private fun NewsListContent(
         onRefresh = onRefresh
     )
 
-    // 监听滚动状态，实现无限加载
+    // 上拉加载更多逻辑 - 监听滚动到底部并自动触发加载
     LaunchedEffect(listState) {
         snapshotFlow {
             val layoutInfo = listState.layoutInfo
             val totalItems = layoutInfo.totalItemsCount
             val lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
 
-            // 返回一个包含必要信息的数据类
             ScrollInfo(
-                lastVisibleIndex = lastVisibleItemIndex,
-                totalItems = totalItems
+                totalItems = totalItems,
+                lastVisibleItemIndex = lastVisibleItemIndex,
+                isAtBottom = lastVisibleItemIndex >= totalItems - 1
             )
         }.collect { scrollInfo ->
-            Log.d("NewsListContent", "📱 滚动状态更新:")
-            Log.d("NewsListContent", "   当前可见最后一个item索引: ${scrollInfo.lastVisibleIndex}")
-            Log.d("NewsListContent", "   总item数量: ${scrollInfo.totalItems}")
+            Log.d("ScrollDebug", "滚动状态: 总数=${scrollInfo.totalItems}, 最后可见=${scrollInfo.lastVisibleItemIndex}, 是否到底=${scrollInfo.isAtBottom}")
 
-            // 当滚动到倒数第2个item时触发加载更多（提前触发）
-            // 修改逻辑：如果有数据显示，就认为状态正常，不完全依赖newsState
-            if (scrollInfo.totalItems > 0) {
-                val isNearBottom = scrollInfo.lastVisibleIndex >= scrollInfo.totalItems - 2
-                val hasEnoughItems = scrollInfo.totalItems >= 5
+            // 当滚动到底部时自动触发加载更多
+            if (scrollInfo.isAtBottom && scrollInfo.totalItems > 0) {
+                if (newsListState is UiState.Success) {
+                    val canLoadMore = !newsListState.data.isLoadingMore && newsListState.data.hasMoreData
 
-                Log.d("NewsListContent", "🔍 检查加载更多条件:")
-                Log.d("NewsListContent", "   当前状态: ${newsListState::class.simpleName}")
-                Log.d("NewsListContent", "   isNearBottom: $isNearBottom (${scrollInfo.lastVisibleIndex} >= ${scrollInfo.totalItems - 2})")
-                Log.d("NewsListContent", "   hasEnoughItems: $hasEnoughItems")
+                    Log.d("LoadMoreDebug", "=== 自动加载更多检查 ===")
+                    Log.d("LoadMoreDebug", "到达底部: ${scrollInfo.isAtBottom}")
+                    Log.d("LoadMoreDebug", "总数: ${scrollInfo.totalItems}")
+                    Log.d("LoadMoreDebug", "isLoadingMore: ${newsListState.data.isLoadingMore}")
+                    Log.d("LoadMoreDebug", "hasMoreData: ${newsListState.data.hasMoreData}")
+                    Log.d("LoadMoreDebug", "canLoadMore: $canLoadMore")
 
-                // 修改条件：只要有数据且接近底部就尝试加载更多
-                if (isNearBottom && hasEnoughItems) {
-                    // 检查是否为Success状态且满足加载更多条件
-                    if (newsListState is UiState.Success) {
-                        val canLoadMore = !newsListState.data.isLoadingMore && newsListState.data.hasMoreData
-                        Log.d("NewsListContent", "   Success状态 - isLoadingMore: ${newsListState.data.isLoadingMore}")
-                        Log.d("NewsListContent", "   Success状态 - hasMoreData: ${newsListState.data.hasMoreData}")
-                        Log.d("NewsListContent", "   Success状态 - canLoadMore: $canLoadMore")
-
-                        if (canLoadMore) {
-                            Log.d("NewsListContent", "🚀 Success状态满足条件，触发加载更多")
-                            onLoadMore()
-                        } else {
-                            Log.d("NewsListContent", "❌ Success状态但不满足加载更多条件")
-                        }
-                    } else {
-                        // 即使状态不是Success，但如果有数据且满足其他条件，也尝试触发
-                        Log.d("NewsListContent", "⚠️ 状态不是Success但有数据，尝试触发加载更多")
+                    if (canLoadMore) {
+                        Log.d("LoadMoreDebug", "🚀 自动触发加载更多")
                         onLoadMore()
+                    } else {
+                        Log.d("LoadMoreDebug", "❌ 无法加载更多 - 可能正在加载或没有更多数据")
                     }
-                } else {
-                    if (!isNearBottom) {
-                        Log.d("NewsListContent", "❌ 未接近底部，不触发加载")
-                    }
-                    if (!hasEnoughItems) {
-                        Log.d("NewsListContent", "❌ 数据量不足5个，不触发")
-                    }
+                }
+            }
+        }
+    }
+
+    // 计算当前状态以显示底部指示器
+    val bottomIndicatorState by remember {
+        derivedStateOf {
+            if (newsListState is UiState.Success) {
+                when {
+                    newsListState.data.isLoadingMore -> BottomIndicatorState.Loading
+                    !newsListState.data.hasMoreData && newsListState.data.news.isNotEmpty() -> BottomIndicatorState.NoMore
+                    else -> BottomIndicatorState.Hidden
                 }
             } else {
-                Log.d("NewsListContent", "❌ 总数量为0，不检查加载更多")
-                if (newsListState !is UiState.Success) {
-                    Log.d("NewsListContent", "❌ 状态不是Success: ${newsListState::class.simpleName}")
-                    // 额外调试：如果状态不是Success，输出更多信息
-                    when (newsListState) {
-                        is UiState.Loading -> {
-                            Log.d("NewsListContent", "   状态详情: 正在加载中")
-                        }
-                        is UiState.Error -> {
-                            Log.d("NewsListContent", "   状态详情: 错误 - ${newsListState.message}")
-                        }
-                        is UiState.Empty -> {
-                            Log.d("NewsListContent", "   状态详情: 空数据")
-                        }
-                        else -> {
-                            Log.d("NewsListContent", "   状态详情: 未知状态")
-                        }
-                    }
-                }
+                BottomIndicatorState.Hidden
             }
         }
     }
@@ -456,20 +428,20 @@ private fun NewsListContent(
     ) {
         when (newsListState) {
             is UiState.Loading -> {
-                if (!isRefreshing) {
-                    LoadingContent()
-                }
+                Log.d("LoadMoreDebug", "显示加载中状态")
+                LoadingContent()
             }
             is UiState.Success -> {
+                Log.d("LoadMoreDebug", "显示成功状态，新闻数量: ${newsListState.data.news.size}")
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp), // 增加间距避免遮挡
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp) // 优化边距
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     items(
                         items = newsListState.data.news,
-                        key = { news -> news.id } // 添加key以优化性能
+                        key = { news -> news.id }
                     ) { news ->
                         NewsItem(
                             news = news,
@@ -478,28 +450,21 @@ private fun NewsListContent(
                         )
                     }
 
-                    // 加载更多指示器
-                    if (newsListState.data.isLoadingMore) {
-                        item {
-                            LoadingMoreIndicator()
-                        }
-                    }
-
-                    // 如果没有更多数据，显示底部提示
-                    if (!newsListState.data.hasMoreData && newsListState.data.news.isNotEmpty()) {
-                        item {
-                            NoMoreDataIndicator()
-                        }
+                    // 底部状态指示器
+                    item {
+                        BottomIndicator(state = bottomIndicatorState)
                     }
                 }
             }
             is UiState.Error -> {
+                Log.d("LoadMoreDebug", "显示错误状态: ${newsListState.message}")
                 ErrorContent(
                     message = newsListState.message,
                     onRetry = onRefresh
                 )
             }
             is UiState.Empty -> {
+                Log.d("LoadMoreDebug", "显示空状态")
                 EmptyContent()
             }
         }
@@ -514,13 +479,83 @@ private fun NewsListContent(
 }
 
 /**
+ * 底部指示器状态
+ */
+private enum class BottomIndicatorState {
+    Hidden,    // 隐藏
+    Loading,   // 正在加载
+    NoMore     // 没有更多数据
+}
+
+/**
  * 滚动信息数据类
- * 用于传递滚动状态信息
  */
 private data class ScrollInfo(
-    val lastVisibleIndex: Int,
-    val totalItems: Int
+    val totalItems: Int,
+    val lastVisibleItemIndex: Int,
+    val isAtBottom: Boolean
 )
+
+/**
+ * 底部指示器组件
+ */
+@Composable
+private fun BottomIndicator(state: BottomIndicatorState) {
+    when (state) {
+        BottomIndicatorState.Loading -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "正在加载更多新闻...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+        BottomIndicatorState.NoMore -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Divider(
+                        modifier = Modifier.width(60.dp),
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "已经到底了",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        }
+        BottomIndicatorState.Hidden -> {
+            // 给底部留一些空间
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
 
 /**
  * 单个新闻条目
@@ -942,6 +977,138 @@ private fun EmptyContent() {
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
+            }
+        }
+    }
+}
+
+/**
+ * 底部加载更多组件
+ */
+@Composable
+private fun LoadMoreFooter(
+    showLoadMoreButton: Boolean,
+    isLoadingMore: Boolean,
+    hasMoreData: Boolean,
+    hasData: Boolean,
+    onLoadMore: () -> Unit
+) {
+    // 添加调试信息
+    Log.d("LoadMoreFooter", "=== LoadMoreFooter 渲染 ===")
+    Log.d("LoadMoreFooter", "showLoadMoreButton: $showLoadMoreButton")
+    Log.d("LoadMoreFooter", "isLoadingMore: $isLoadingMore")
+    Log.d("LoadMoreFooter", "hasMoreData: $hasMoreData")
+    Log.d("LoadMoreFooter", "hasData: $hasData")
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        when {
+            // 正在加载更多
+            isLoadingMore -> {
+                Log.d("LoadMoreFooter", "显示加载中状态")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "正在加载更多新闻...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            // 显示加载更多按钮
+            showLoadMoreButton -> {
+                Log.d("LoadMoreFooter", "显示加载更多按钮")
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            Log.d("LoadMoreFooter", "🔥 加载更多按钮被点击")
+                            onLoadMore()
+                        },
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "加载更多",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "上拉加载更多",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                // 添加一个小提示
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "点击或向上滑动加载更多内容",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // 没有更多数据
+            !hasMoreData && hasData -> {
+                Log.d("LoadMoreFooter", "显示没有更多数据")
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Divider(
+                        modifier = Modifier.width(60.dp),
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "已经到底了",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "感谢您的阅读 📰",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                }
+            }
+
+            // 默认状态：给底部留一些空间
+            else -> {
+                Log.d("LoadMoreFooter", "显示默认状态")
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
