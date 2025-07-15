@@ -19,13 +19,40 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            // 方案1：使用debug keystore作为临时解决方案
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+
+            // 方案2：使用自定义keystore（推荐生产环境）
+            // 取消注释下面的代码并替换为您的keystore信息
+            // storeFile = file("release-key.keystore")
+            // storePassword = "your_store_password"
+            // keyAlias = "your_key_alias"
+            // keyPassword = "your_key_password"
+        }
+    }
+
     buildTypes {
+        debug {
+            isDebuggable = true
+            isMinifyEnabled = false
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            // debug版本使用默认的debug签名
+        }
+
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // 使用自定义签名配置
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
