@@ -361,8 +361,22 @@ private fun NewsListContent(
 ) {
     val listState = rememberLazyListState()
 
-    // 下拉刷新状态
-    val isRefreshing = newsListState is UiState.Loading
+    // 下拉刷新状态 - 修复刷新状态判断逻辑
+    val isRefreshing = when (newsListState) {
+        is UiState.Loading -> true
+        is UiState.Success -> newsListState.data.isRefreshing
+        else -> false
+    }
+
+    // 添加调试日志
+    LaunchedEffect(isRefreshing) {
+        Log.d("NewsListContent", "🔄 刷新状态变化: isRefreshing=$isRefreshing")
+        Log.d("NewsListContent", "   newsListState类型: ${newsListState::class.simpleName}")
+        if (newsListState is UiState.Success) {
+            Log.d("NewsListContent", "   data.isRefreshing: ${newsListState.data.isRefreshing}")
+        }
+    }
+
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
         onRefresh = onRefresh
@@ -504,12 +518,169 @@ private fun NewsListContent(
             }
         }
 
-        // 下拉刷新指示器
-        PullRefreshIndicator(
+        // 下拉刷新指示器 - 优化版本
+        CustomPullRefreshIndicator(
             refreshing = isRefreshing,
             state = pullRefreshState,
             modifier = Modifier.align(Alignment.TopCenter)
         )
+    }
+}
+
+/**
+ * 自定义下拉刷新指示器
+ * 提供更明显的刷新特效和提示信息
+ */
+@OptIn(ExperimentalMaterialApi::class)
+@Composable
+private fun CustomPullRefreshIndicator(
+    refreshing: Boolean,
+    state: androidx.compose.material.pullrefresh.PullRefreshState,
+    modifier: Modifier = Modifier
+) {
+    // 添加调试日志
+    LaunchedEffect(refreshing) {
+        Log.d("CustomPullRefresh", "🔄 CustomPullRefreshIndicator 状态变化: refreshing=$refreshing")
+    }
+
+    // 添加刷新完成后的短暂显示状态
+    var showSuccessMessage by remember { mutableStateOf(false) }
+    var wasRefreshing by remember { mutableStateOf(false) }
+
+    // 监听刷新状态变化
+    LaunchedEffect(refreshing) {
+        Log.d("CustomPullRefresh", "🔄 刷新状态监听: wasRefreshing=$wasRefreshing, refreshing=$refreshing")
+
+        if (wasRefreshing && !refreshing) {
+            // 刷新完成，显示成功消息
+            Log.d("CustomPullRefresh", "✅ 刷新完成，显示成功消息")
+            showSuccessMessage = true
+            delay(1500) // 显示1.5秒
+            showSuccessMessage = false
+            Log.d("CustomPullRefresh", "⏰ 成功消息显示结束")
+        }
+        wasRefreshing = refreshing
+    }
+
+    // 添加当前状态日志
+    Log.d("CustomPullRefresh", "🎨 当前渲染状态: refreshing=$refreshing, showSuccessMessage=$showSuccessMessage")
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        when {
+            // 刷新完成提示
+            showSuccessMessage -> {
+                Log.d("CustomPullRefresh", "✨ 渲染成功消息")
+                Card(
+                    modifier = Modifier
+                        .wrapContentSize()
+                        .padding(horizontal = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f)
+                    ),
+                    shape = RoundedCornerShape(24.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 成功图标
+                        Surface(
+                            modifier = Modifier.size(24.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "✓",
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
+                            Text(
+                                text = "刷新完成",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "已为您加载最新新闻",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 正在刷新
+            refreshing -> {
+                Log.d("CustomPullRefresh", "🔄 渲染刷新状态")
+                Card(
+                    modifier = Modifier
+                        .wrapContentSize()
+                        .padding(horizontal = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                    ),
+                    shape = RoundedCornerShape(24.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 加载进度条
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 3.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
+                            Text(
+                                text = "正在刷新",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "正在为您获取最新资讯",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 默认状态使用原始的PullRefreshIndicator
+            else -> {
+                Log.d("CustomPullRefresh", "📱 渲染默认状态")
+                PullRefreshIndicator(
+                    refreshing = refreshing,
+                    state = state,
+                    modifier = Modifier,
+                    backgroundColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
     }
 }
 
